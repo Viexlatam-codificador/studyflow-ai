@@ -1,0 +1,54 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f8fafc;
+  --foreground: #111827;
+  --card: #ffffff;
+  --border: #e2e8f0;
+  --brand-indigo: #4f46e5;
+  --brand-violet: #7c3aed;
+  --brand-midnight: #111827;
+  --brand-offwhite: #f8fafc;
+  --brand-success: #10b981;
+  --brand-warning: #f59e0b;
+  --brand-urgent: #ef4444;
+}
+
+[data-theme="dark"] {
+  --background: #0b0f1a;
+  --foreground: #f8fafc;
+  --card: #111827;
+  --border: #1f2937;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-border: var(--border);
+  --color-brand-indigo: var(--brand-indigo);
+  --color-brand-violet: var(--brand-violet);
+  --color-brand-midnight: var(--brand-midnight);
+  --color-brand-offwhite: var(--brand-offwhite);
+  --color-brand-success: var(--brand-success);
+  --color-brand-warning: var(--brand-warning);
+  --color-brand-urgent: var(--brand-urgent);
+  --font-sans: var(--font-inter);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), system-ui, sans-serif;
+}
+
+.brand-gradient {
+  background-image: linear-gradient(135deg, var(--brand-indigo), var(--brand-violet));
+}
+
+.brand-gradient-text {
+  background-image: linear-gradient(135deg, var(--brand-indigo), var(--brand-violet));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}

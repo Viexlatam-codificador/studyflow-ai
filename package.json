@@ -1,0 +1,26 @@
+{
+  "name": "studyflow-ai",
+  "private": true,
+  "version": "0.1.0",
+  "description": "StudyFlow AI — Smart Academic Operating System",
+  "workspaces": [
+    "apps/student-web",
+    "apps/admin-web",
+    "packages/shared",
+    "packages/ui",
+    "packages/ai-core",
+    "packages/academic-core",
+    "packages/integrations"
+  ],
+  "scripts": {
+    "dev:student": "npm run dev --workspace=apps/student-web",
+    "dev:admin": "npm run dev --workspace=apps/admin-web",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
