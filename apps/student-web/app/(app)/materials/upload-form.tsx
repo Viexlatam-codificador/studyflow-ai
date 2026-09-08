@@ -22,6 +22,7 @@ export function UploadForm({ userId, subjects }: { userId: string; subjects: { i
   const router = useRouter();
   const [items, setItems] = useState<PendingFile[]>([]);
   const [subjectId, setSubjectId] = useState("");
+  const [shareWithSubject, setShareWithSubject] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -72,7 +73,13 @@ export function UploadForm({ userId, subjects }: { userId: string; subjects: { i
         }
 
         setItems((prev) => prev.map((item, idx) => (idx === i ? { ...item, status: "done" } : item)));
-        uploaded.push({ title, storagePath: path, fileType: file.type, subjectId: subjectId || null });
+        uploaded.push({
+          title,
+          storagePath: path,
+          fileType: file.type,
+          subjectId: subjectId || null,
+          shareWithSubject,
+        });
       }
 
       if (uploaded.length > 0) {
@@ -122,6 +129,17 @@ export function UploadForm({ userId, subjects }: { userId: string; subjects: { i
                 </option>
               ))}
             </select>
+          )}
+
+          {subjectId && (
+            <label className="flex items-center gap-2 text-sm text-foreground/70">
+              <input
+                type="checkbox"
+                checked={shareWithSubject}
+                onChange={(e) => setShareWithSubject(e.target.checked)}
+              />
+              Compartir con mis compañeros de esta asignatura
+            </label>
           )}
 
           <div className="flex flex-col gap-2">

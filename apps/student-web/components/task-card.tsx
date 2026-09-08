@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import Link from "next/link";
 import { updateTaskStatus, deleteTask } from "@/lib/actions/tasks";
 import type { TaskWithSubject } from "@/lib/data/tasks";
 import { formatShortDate } from "@/lib/format-date";
@@ -39,7 +40,12 @@ export function TaskCard({ task }: { task: TaskWithSubject }) {
 
       <div className="flex-1">
         <div className="flex items-center justify-between gap-2">
-          <p className={`font-medium ${isDone ? "text-foreground/50 line-through" : ""}`}>{task.title}</p>
+          <Link
+            href={`/tasks/${task.id}`}
+            className={`font-medium hover:text-brand-violet ${isDone ? "text-foreground/50 line-through" : ""}`}
+          >
+            {task.title}
+          </Link>
           {task.priorityScore !== null && !isDone && (
             <span className="shrink-0 rounded-full bg-brand-violet/10 px-2 py-0.5 text-xs font-medium text-brand-violet">
               {Math.round(task.priorityScore)}

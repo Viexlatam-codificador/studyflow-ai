@@ -46,6 +46,7 @@ export interface MaterialUploadItem {
   storagePath: string;
   fileType: string;
   subjectId: string | null;
+  shareWithSubject?: boolean;
 }
 
 /** Same as createMaterialRecord but for many files uploaded together (the
@@ -68,6 +69,7 @@ export async function createMaterialRecords(items: MaterialUploadItem[]) {
       storage_path: item.storagePath,
       file_type: item.fileType,
       subject_id: item.subjectId,
+      visibility: item.shareWithSubject && item.subjectId ? "SUBJECT" : "PRIVATE",
       extracted_text_status: "PENDING",
     }))
   );
