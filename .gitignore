@@ -28,3 +28,8 @@ supabase/.temp/
 
 # Local Netlify folder
 .netlify
+
+# GitHub blocks pushes touching workflow files from OAuth apps without the
+# 'workflow' scope (see docs/architecture/next16-notes.md history for the
+# saga) — kept locally, add via github.com's web editor when convenient.
+.github/workflows/ci.yml
