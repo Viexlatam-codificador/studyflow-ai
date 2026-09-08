@@ -61,14 +61,12 @@ export function InboxClient({ subjects, userId }: { subjects: { id: string; name
         <PhotoCapture userId={userId} onDraft={setDraft} />
       )}
 
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href="/materials"
-          className="rounded-full border border-brand-violet/40 bg-brand-violet/10 px-3 py-1.5 text-xs font-medium text-brand-violet hover:bg-brand-violet/20"
-        >
-          Subir documento →
-        </Link>
-      </div>
+      <Link
+        href="/materials"
+        className="flex items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-violet/40 bg-brand-violet/5 px-4 py-4 text-sm font-semibold text-brand-violet transition hover:border-brand-violet hover:bg-brand-violet/10 active:scale-[0.98]"
+      >
+        📄 Subir documento (PDF, apuntes, guías)
+      </Link>
 
       <div>
         <p className="mb-2 text-sm font-medium text-foreground/60">Próximamente</p>
@@ -144,10 +142,17 @@ function PhotoCapture({ userId, onDraft }: { userId: string; onDraft: (draft: In
         ref={inputRef}
         type="file"
         accept="image/*"
-        capture="environment"
         onChange={handleFileChange}
-        className="text-sm"
+        className="hidden"
       />
+
+      <button
+        type="button"
+        onClick={() => inputRef.current?.click()}
+        className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-violet/40 bg-brand-violet/5 px-4 py-4 text-sm font-semibold text-brand-violet transition hover:border-brand-violet hover:bg-brand-violet/10 active:scale-[0.98]"
+      >
+        📷 Elegir foto (cámara, galería o archivos)
+      </button>
 
       {preview && (
         // eslint-disable-next-line @next/next/no-img-element

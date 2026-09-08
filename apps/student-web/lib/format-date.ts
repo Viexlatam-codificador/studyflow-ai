@@ -40,3 +40,10 @@ export function formatShortDate(date: Date): string {
 export function formatMonthYear(date: Date): string {
   return `${MONTHS_LONG[date.getMonth()]} ${date.getFullYear()}`;
 }
+
+const WEEKDAYS_SHORT = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+
+/** e.g. "mié 9" */
+export function formatWeekdayDay(date: Date): string {
+  return `${WEEKDAYS_SHORT[date.getDay()]} ${date.getDate()}`;
+}

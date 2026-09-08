@@ -6,9 +6,9 @@ import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TaskWithSubject } from "@/lib/data/tasks";
 import { rescheduleTask, updateCalendarTheme } from "@/lib/actions/calendar";
-import { createTask } from "@/lib/actions/tasks";
+import { createTask, updateTaskStatus } from "@/lib/actions/tasks";
 import { THEME_PRESETS, resolveThemeBackground, type CalendarTheme } from "@/lib/calendar-themes";
-import { formatMonthYear } from "@/lib/format-date";
+import { formatMonthYear, formatWeekdayDay } from "@/lib/format-date";
 
 const WEEKDAY_LABELS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
@@ -72,6 +72,15 @@ export function InteractiveCalendar({
   const { background, mode } = resolveThemeBackground(theme);
   const textTone = mode === "dark" ? "text-foreground" : "text-white";
 
+  const upcomingExams = useMemo(() => {
+    const now = new Date();
+    return localTasks
+      .filter((t) => t.dueAt && t.gradeWeight && t.gradeWeight > 0 && t.status !== "COMPLETED" && t.status !== "SUBMITTED")
+      .filter((t) => new Date(t.dueAt!) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+      .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())
+      .slice(0, 3);
+  }, [localTasks]);
+
   function handleDrop(targetKey: string) {
     if (!draggedId) return;
     const taskId = draggedId;
@@ -98,6 +107,18 @@ export function InteractiveCalendar({
     setTheme(next);
     startTransition(async () => {
       await updateCalendarTheme(next);
+    });
+  }
+
+  function toggleComplete(task: TaskWithSubject) {
+    const isDone = task.status === "COMPLETED" || task.status === "SUBMITTED";
+    const nextStatus = isDone ? "IN_PROGRESS" : "COMPLETED";
+
+    setLocalTasks((prev) => prev.map((t) => (t.id === task.id ? { ...t, status: nextStatus } : t)));
+
+    startTransition(async () => {
+      await updateTaskStatus(task.id, nextStatus);
+      router.refresh();
     });
   }
 
@@ -206,6 +227,22 @@ export function InteractiveCalendar({
         </div>
       </div>
 
+      {upcomingExams.length > 0 && (
+        <div className="mb-4 flex flex-col gap-1.5 rounded-2xl bg-black/15 p-3 backdrop-blur">
+          <p className={`text-xs font-semibold uppercase tracking-wide ${textTone} opacity-80`}>
+            📝 Próximas pruebas
+          </p>
+          {upcomingExams.map((exam) => (
+            <div key={exam.id} className={`flex items-center justify-between text-sm ${textTone}`}>
+              <span className="truncate">{exam.title}</span>
+              <span className="shrink-0 text-xs opacity-80">
+                {formatWeekdayDay(new Date(exam.dueAt!))} · vale {exam.gradeWeight}%
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
       <div className="grid grid-cols-7 gap-1.5">
         {WEEKDAY_LABELS.map((label) => (
           <div key={label} className={`px-1 pb-1 text-center text-xs font-semibold ${textTone} opacity-80`}>
@@ -269,30 +306,52 @@ export function InteractiveCalendar({
 
               <div className="flex flex-1 flex-col gap-1 overflow-hidden">
                 <AnimatePresence initial={false}>
-                  {dayTasks.slice(0, 3).map((task) => (
-                    <motion.div
-                      key={task.id}
-                      layoutId={task.id}
-                      layout
-                      draggable
-                      onDragStart={() => setDraggedId(task.id)}
-                      onDragEnd={() => {
-                        setDraggedId(null);
-                        setDragOverKey(null);
-                      }}
-                      initial={{ opacity: 0, scale: 0.8 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.8 }}
-                      whileHover={{ scale: 1.04 }}
-                      whileDrag={{ scale: 1.1, boxShadow: "0 8px 20px rgba(0,0,0,0.25)" }}
-                      transition={{ type: "spring", stiffness: 500, damping: 30 }}
-                      className="cursor-grab truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm active:cursor-grabbing"
-                      style={{ backgroundColor: task.subjectColor ?? "#7C3AED" }}
-                      title={task.title}
-                    >
-                      {task.title}
-                    </motion.div>
-                  ))}
+                  {dayTasks.slice(0, 3).map((task) => {
+                    const isDone = task.status === "COMPLETED" || task.status === "SUBMITTED";
+                    const isExam = Boolean(task.gradeWeight && task.gradeWeight > 0);
+
+                    return (
+                      <motion.div
+                        key={task.id}
+                        layoutId={task.id}
+                        layout
+                        draggable
+                        onDragStart={() => setDraggedId(task.id)}
+                        onDragEnd={() => {
+                          setDraggedId(null);
+                          setDragOverKey(null);
+                        }}
+                        initial={{ opacity: 0, scale: 0.8 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.8 }}
+                        whileHover={{ scale: 1.04 }}
+                        whileDrag={{ scale: 1.1, boxShadow: "0 8px 20px rgba(0,0,0,0.25)" }}
+                        transition={{ type: "spring", stiffness: 500, damping: 30 }}
+                        className={`flex cursor-grab items-center gap-1 truncate rounded-md px-1.5 py-0.5 text-[10px] font-medium text-white shadow-sm active:cursor-grabbing ${
+                          isExam && !isDone ? "ring-2 ring-brand-warning" : ""
+                        } ${isDone ? "opacity-50" : ""}`}
+                        style={{ backgroundColor: task.subjectColor ?? "#7C3AED" }}
+                        title={isExam ? `Prueba/evaluación — vale ${task.gradeWeight}% · ${task.title}` : task.title}
+                      >
+                        <button
+                          draggable={false}
+                          onPointerDown={(e) => e.stopPropagation()}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleComplete(task);
+                          }}
+                          aria-label={isDone ? "Marcar como pendiente" : "Marcar como lograda"}
+                          className={`flex h-3 w-3 shrink-0 items-center justify-center rounded-full border border-white/80 ${
+                            isDone ? "bg-white text-brand-success" : "bg-transparent"
+                          }`}
+                        >
+                          {isDone && "✓"}
+                        </button>
+                        {isExam && !isDone && <span>📝</span>}
+                        <span className={isDone ? "line-through" : ""}>{task.title}</span>
+                      </motion.div>
+                    );
+                  })}
                 </AnimatePresence>
                 {dayTasks.length > 3 && (
                   <span className="text-[10px] font-medium text-foreground/50">+{dayTasks.length - 3} más</span>
@@ -304,7 +363,7 @@ export function InteractiveCalendar({
       </div>
 
       <p className={`mt-3 text-center text-xs ${textTone} opacity-70`}>
-        Toca + en un día para agregar una tarea, o arrastra una existente para cambiarla de fecha
+        Toca ○ para marcar una tarea como lograda, + para agregar una nueva, o arrástrala a otro día
         {isPending && " · guardando…"}
       </p>
     </div>
