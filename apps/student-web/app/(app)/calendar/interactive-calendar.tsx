@@ -1,10 +1,12 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import type { TaskWithSubject } from "@/lib/data/tasks";
 import { rescheduleTask, updateCalendarTheme } from "@/lib/actions/calendar";
+import { createTask } from "@/lib/actions/tasks";
 import { THEME_PRESETS, resolveThemeBackground, type CalendarTheme } from "@/lib/calendar-themes";
 import { formatMonthYear } from "@/lib/format-date";
 
@@ -37,11 +39,21 @@ export function InteractiveCalendar({
   const router = useRouter();
   const [monthDate, setMonthDate] = useState(() => new Date());
   const [localTasks, setLocalTasks] = useState(tasks);
+  // Re-sync local (optimistically-mutated) task list whenever the server
+  // sends fresh props (router.refresh()) — adjusted during render per
+  // https://react.dev/learn/you-might-not-need-an-effect, not in an effect.
+  const [tasksSnapshot, setTasksSnapshot] = useState(tasks);
+  if (tasks !== tasksSnapshot) {
+    setTasksSnapshot(tasks);
+    setLocalTasks(tasks);
+  }
   const [draggedId, setDraggedId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [theme, setTheme] = useState<CalendarTheme>(initialTheme);
   const [showThemePicker, setShowThemePicker] = useState(false);
   const [customImageUrl, setCustomImageUrl] = useState(theme.imageUrl ?? "");
+  const [addingOnDay, setAddingOnDay] = useState<string | null>(null);
+  const [newTaskTitle, setNewTaskTitle] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const grid = useMemo(() => getMonthGrid(monthDate), [monthDate]);
@@ -89,6 +101,23 @@ export function InteractiveCalendar({
     });
   }
 
+  function addTaskOnDay(dateKeyStr: string) {
+    const title = newTaskTitle.trim();
+    if (!title) return;
+
+    const formData = new FormData();
+    formData.set("title", title);
+    formData.set("due_at", `${dateKeyStr}T23:59`);
+
+    setNewTaskTitle("");
+    setAddingOnDay(null);
+
+    startTransition(async () => {
+      await createTask(formData);
+      router.refresh();
+    });
+  }
+
   return (
     <div
       className="relative overflow-hidden rounded-3xl border border-border p-4 shadow-lg transition-all duration-500 sm:p-6"
@@ -112,6 +141,14 @@ export function InteractiveCalendar({
             ›
           </button>
         </div>
+
+        <div className="flex items-center gap-2">
+          <Link
+            href="/study"
+            className={`rounded-full px-3 py-1.5 text-sm font-medium transition hover:scale-105 active:scale-95 ${textTone} bg-white/15 backdrop-blur`}
+          >
+            📖 Estudiar
+          </Link>
 
         <div className="relative">
           <button
@@ -166,6 +203,7 @@ export function InteractiveCalendar({
             )}
           </AnimatePresence>
         </div>
+        </div>
       </div>
 
       <div className="grid grid-cols-7 gap-1.5">
@@ -198,9 +236,36 @@ export function InteractiveCalendar({
                 isCurrentMonth ? "bg-white/90" : "bg-white/40"
               } ${isToday ? "ring-2 ring-brand-violet" : ""} ${isDragOver ? "scale-105 bg-white ring-2 ring-brand-success" : ""}`}
             >
-              <span className={`text-xs font-medium ${isCurrentMonth ? "text-foreground/70" : "text-foreground/30"}`}>
-                {day.getDate()}
-              </span>
+              <div className="flex items-center justify-between">
+                <span className={`text-xs font-medium ${isCurrentMonth ? "text-foreground/70" : "text-foreground/30"}`}>
+                  {day.getDate()}
+                </span>
+                <button
+                  onClick={() => {
+                    setAddingOnDay(addingOnDay === key ? null : key);
+                    setNewTaskTitle("");
+                  }}
+                  aria-label="Agregar tarea este día"
+                  className="rounded-full text-foreground/30 hover:bg-brand-violet/10 hover:text-brand-violet"
+                >
+                  +
+                </button>
+              </div>
+
+              {addingOnDay === key && (
+                <input
+                  autoFocus
+                  value={newTaskTitle}
+                  onChange={(e) => setNewTaskTitle(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addTaskOnDay(key);
+                    if (e.key === "Escape") setAddingOnDay(null);
+                  }}
+                  onBlur={() => addTaskOnDay(key)}
+                  placeholder="Título y Enter…"
+                  className="w-full rounded-md border border-brand-violet/40 bg-white px-1.5 py-0.5 text-[10px] text-foreground outline-none"
+                />
+              )}
 
               <div className="flex flex-1 flex-col gap-1 overflow-hidden">
                 <AnimatePresence initial={false}>
@@ -239,7 +304,8 @@ export function InteractiveCalendar({
       </div>
 
       <p className={`mt-3 text-center text-xs ${textTone} opacity-70`}>
-        Arrastra una tarea a otro día para cambiar su fecha {isPending && "· guardando…"}
+        Toca + en un día para agregar una tarea, o arrastra una existente para cambiarla de fecha
+        {isPending && " · guardando…"}
       </p>
     </div>
   );

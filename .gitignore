@@ -9,6 +9,8 @@ build/
 *.log
 .DS_Store
 .vercel/
+.netlify/
+deno.lock
 coverage/
 .turbo/
 .flutter-plugins
@@ -22,3 +24,7 @@ ios/.symlinks/
 .idea/
 supabase/.branches/
 supabase/.temp/
+.vercel
+
+# Local Netlify folder
+.netlify

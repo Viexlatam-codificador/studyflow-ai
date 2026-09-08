@@ -41,6 +41,42 @@ export async function createMaterialRecord(formData: FormData) {
   redirect(`/materials/${material.id}`);
 }
 
+export interface MaterialUploadItem {
+  title: string;
+  storagePath: string;
+  fileType: string;
+  subjectId: string | null;
+}
+
+/** Same as createMaterialRecord but for many files uploaded together (the
+ * common case — students rarely upload just one file at a time) — inserts
+ * them all in one batch and doesn't redirect, since there's no single
+ * detail page to send the user to. */
+export async function createMaterialRecords(items: MaterialUploadItem[]) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  if (items.length === 0) return;
+
+  const { error } = await supabase.from("course_materials").insert(
+    items.map((item) => ({
+      user_id: user.id,
+      title: item.title,
+      storage_path: item.storagePath,
+      file_type: item.fileType,
+      subject_id: item.subjectId,
+      extracted_text_status: "PENDING",
+    }))
+  );
+
+  if (error) throw new Error(error.message);
+
+  revalidatePath("/materials");
+}
+
 export async function generateMaterialSummary(materialId: string) {
   const supabase = await createClient();
   const {
