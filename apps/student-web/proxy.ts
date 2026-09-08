@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback"];
+const PUBLIC_PATHS = ["/", "/login", "/signup", "/auth/callback", "/manifest.webmanifest", "/sw.js"];
 
 /**
  * Refreshes the Supabase session on every request (Next.js 16 renamed
