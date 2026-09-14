@@ -3,15 +3,47 @@
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { recommendForAvailableTime } from "@studyflow/academic-core";
 import type { TaskWithSubject } from "@/lib/data/tasks";
-import { startStudySession, endStudySession } from "@/lib/actions/study";
+import { startStudySession, endStudySession, setPreferredAiProvider } from "@/lib/actions/study";
+import { AI_PROVIDERS, buildAiUrl, buildStudyPrompt, type AiProvider } from "@/lib/ai-study-prompt";
+import { formatShortDate } from "@/lib/format-date";
 
 const TIME_OPTIONS = [15, 30, 45, 60, 90, 120];
 
-export function StudyClient({ tasks }: { tasks: TaskWithSubject[] }) {
+export function StudyClient({
+  tasks,
+  initialProvider,
+}: {
+  tasks: TaskWithSubject[];
+  initialProvider: AiProvider | null;
+}) {
   const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const [provider, setProvider] = useState<AiProvider | null>(initialProvider);
+  const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+
+  function chooseProvider(next: AiProvider) {
+    setProvider(next);
+    startTransition(() => setPreferredAiProvider(next));
+  }
+
+  async function studyWithAi(task: TaskWithSubject) {
+    if (!provider) return;
+    const prompt = buildStudyPrompt({
+      title: task.title,
+      description: task.description,
+      subjectName: task.subjectName,
+      dueAt: task.dueAt ? formatShortDate(new Date(task.dueAt)) : null,
+    });
+    try {
+      await navigator.clipboard.writeText(prompt);
+      setCopyStatus("Texto copiado al portapapeles — pégalo en el chat que se abrió.");
+    } catch {
+      setCopyStatus("No pudimos copiar automáticamente — copia el texto desde la tarea.");
+    }
+    window.open(buildAiUrl(provider, prompt), "_blank", "noopener,noreferrer");
+  }
 
   const recommendation = useMemo(
     () => (availableMinutes ? recommendForAvailableTime(tasks, availableMinutes) : null),
@@ -114,6 +146,38 @@ export function StudyClient({ tasks }: { tasks: TaskWithSubject[] }) {
           >
             {isPending ? "Iniciando…" : "Comenzar sesión"}
           </button>
+
+          <div className="mt-6 border-t border-border pt-4">
+            <p className="mb-2 text-sm font-medium text-foreground/70">¿Con qué IA prefieres estudiar?</p>
+            <div className="flex flex-wrap gap-2">
+              {AI_PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => chooseProvider(p.id)}
+                  className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
+                    provider === p.id ? "brand-gradient border-transparent text-white" : "border-border"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+
+            {provider && (
+              <>
+                <button
+                  onClick={() => studyWithAi(recommendation.task as TaskWithSubject)}
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-brand-violet/40 bg-brand-violet/5 px-4 py-3 text-sm font-semibold text-brand-violet transition hover:border-brand-violet hover:bg-brand-violet/10 active:scale-[0.98]"
+                >
+                  🤖 Estudiar esta tarea con {AI_PROVIDERS.find((p) => p.id === provider)?.label}
+                </button>
+                <p className="mt-2 text-xs text-foreground/40">
+                  {AI_PROVIDERS.find((p) => p.id === provider)?.note}
+                </p>
+                {copyStatus && <p className="mt-1 text-xs text-brand-violet">{copyStatus}</p>}
+              </>
+            )}
+          </div>
         </div>
       )}
     </div>

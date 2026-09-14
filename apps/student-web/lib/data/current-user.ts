@@ -8,6 +8,7 @@ export interface CurrentUser {
   roles: string[];
   planKey: string;
   onboardingCompletedAt: string | null;
+  preferredAiProvider: string | null;
 }
 
 export async function requireCurrentUser(): Promise<CurrentUser> {
@@ -19,7 +20,7 @@ export async function requireCurrentUser(): Promise<CurrentUser> {
   if (!user) redirect("/login");
 
   const [{ data: profile }, { data: roles }, { data: entitlement }] = await Promise.all([
-    supabase.from("profiles").select("name, onboarding_completed_at").eq("id", user.id).single(),
+    supabase.from("profiles").select("name, onboarding_completed_at, preferred_ai_provider").eq("id", user.id).single(),
     supabase.from("user_roles").select("role").eq("user_id", user.id),
     supabase.from("entitlements").select("plan_key").eq("user_id", user.id).maybeSingle(),
   ]);
@@ -31,5 +32,6 @@ export async function requireCurrentUser(): Promise<CurrentUser> {
     roles: (roles ?? []).map((r) => r.role),
     planKey: entitlement?.plan_key ?? "FREE",
     onboardingCompletedAt: profile?.onboarding_completed_at ?? null,
+    preferredAiProvider: profile?.preferred_ai_provider ?? null,
   };
 }

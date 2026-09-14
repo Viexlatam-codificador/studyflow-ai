@@ -2,12 +2,45 @@
 
 import { useActionState } from "react";
 import Link from "next/link";
-import { login, type AuthFormState } from "@/lib/actions/auth";
+import { login, resendConfirmation, type AuthFormState } from "@/lib/actions/auth";
 
 const initialState: AuthFormState = {};
 
 export default function LoginPage() {
   const [state, formAction, pending] = useActionState(login, initialState);
+  const [resendState, resendAction, resendPending] = useActionState(
+    async (_prev: AuthFormState, email: string) => resendConfirmation(email),
+    initialState
+  );
+
+  if (state.needsConfirmation) {
+    const email = state.confirmationEmail ?? "";
+    return (
+      <div className="flex min-h-screen items-center justify-center px-6">
+        <div className="w-full max-w-sm rounded-2xl border border-border bg-card p-8 text-center">
+          <p className="text-3xl">📬</p>
+          <h1 className="mb-2 mt-3 text-xl font-semibold">Confirma tu correo</h1>
+          <p className="text-sm text-foreground/60">
+            Tu cuenta <span className="font-medium text-foreground">{email}</span> aún no está confirmada. Revisa
+            el correo que te enviamos al registrarte (y spam) y abre el enlace.
+          </p>
+
+          {resendState.error && <p className="mt-3 text-sm text-brand-urgent">{resendState.error}</p>}
+          {resendState.needsConfirmation && !resendState.error && (
+            <p className="mt-3 text-sm text-brand-violet">Correo reenviado.</p>
+          )}
+
+          <button
+            disabled={resendPending}
+            onClick={() => resendAction(email)}
+            className="mt-5 rounded-full border border-border px-4 py-2 text-sm font-medium disabled:opacity-60"
+          >
+            {resendPending ? "Reenviando…" : "Reenviar correo"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center px-6">

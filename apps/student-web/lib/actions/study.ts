@@ -3,6 +3,18 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import type { AiProvider } from "@/lib/ai-study-prompt";
+
+export async function setPreferredAiProvider(provider: AiProvider) {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  await supabase.from("profiles").update({ preferred_ai_provider: provider }).eq("id", user.id);
+  revalidatePath("/study");
+}
 
 export async function startStudySession(taskId: string | null, plannedMinutes: number): Promise<string> {
   const supabase = await createClient();
