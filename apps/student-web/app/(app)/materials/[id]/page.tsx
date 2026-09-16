@@ -16,6 +16,17 @@ export default async function MaterialDetailPage({ params }: { params: Promise<{
         </p>
       </div>
 
+      {material.downloadUrl && (
+        <a
+          href={material.downloadUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 self-start rounded-full border-2 border-brand-violet/40 bg-brand-violet/5 px-5 py-2 text-sm font-semibold text-brand-violet transition hover:border-brand-violet hover:bg-brand-violet/10"
+        >
+          ⬇️ Ver / descargar archivo original
+        </a>
+      )}
+
       <GenerateSummaryButton materialId={material.id} status={material.extractedTextStatus} />
 
       {material.summaries.length === 0 ? (

@@ -76,6 +76,7 @@ export async function listSharedMaterialsForCurrentUser(): Promise<SharedMateria
 
 export interface MaterialDetail extends MaterialRow {
   storagePath: string;
+  downloadUrl: string | null;
   summaries: { id: string; content: string; createdAt: string }[];
 }
 
@@ -89,6 +90,10 @@ export async function getMaterialDetail(materialId: string): Promise<MaterialDet
     .single();
 
   if (!material) return null;
+
+  const { data: signed } = await supabase.storage
+    .from("course-materials")
+    .createSignedUrl(material.storage_path, 60 * 60);
 
   const { data: summaries } = await supabase
     .from("ai_content")
@@ -106,6 +111,7 @@ export async function getMaterialDetail(materialId: string): Promise<MaterialDet
     extractedTextStatus: material.extracted_text_status,
     createdAt: material.created_at,
     storagePath: material.storage_path,
+    downloadUrl: signed?.signedUrl ?? null,
     subjectName: subject?.name ?? null,
     visibility: material.visibility,
     summaries: (summaries ?? []).map((s) => ({ id: s.id, content: s.content, createdAt: s.created_at })),

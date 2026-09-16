@@ -5,7 +5,26 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { createMaterialRecords, type MaterialUploadItem } from "@/lib/actions/materials";
 
-const ACCEPTED_TYPES = ["application/pdf", "text/plain", "text/markdown"];
+// Everything a student actually tries to upload — apuntes fotografiados,
+// guías en PDF, o lo que el profesor comparte en Word/PowerPoint/Excel.
+// Only PDF/TXT/Markdown get an AI summary today (see extract-text.ts), but
+// every other type still uploads and stays downloadable — storing the file
+// isn't the same as being able to summarize it.
+const ACCEPTED_TYPES = [
+  "application/pdf",
+  "text/plain",
+  "text/markdown",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/heic",
+  "application/msword",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+];
 
 interface PendingFile {
   file: File;
@@ -18,19 +37,45 @@ function cleanTitle(filename: string): string {
   return filename.replace(/\.[^.]+$/, "");
 }
 
+const ACCEPTED_EXTENSIONS = [
+  "pdf",
+  "txt",
+  "md",
+  "jpg",
+  "jpeg",
+  "png",
+  "webp",
+  "heic",
+  "doc",
+  "docx",
+  "ppt",
+  "pptx",
+  "xls",
+  "xlsx",
+];
+
+// Some browsers/OS report an empty or generic MIME type for .md/.heic files —
+// fall back to the extension so those don't get rejected for no real reason.
+function isAcceptedFile(file: File): boolean {
+  if (ACCEPTED_TYPES.includes(file.type)) return true;
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  return !!ext && ACCEPTED_EXTENSIONS.includes(ext);
+}
+
 export function UploadForm({ userId, subjects }: { userId: string; subjects: { id: string; name: string }[] }) {
   const router = useRouter();
   const [items, setItems] = useState<PendingFile[]>([]);
   const [subjectId, setSubjectId] = useState("");
   const [shareWithSubject, setShareWithSubject] = useState(false);
   const [rejected, setRejected] = useState<string[]>([]);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const selected = Array.from(e.target.files ?? []);
-    const accepted = selected.filter((f) => ACCEPTED_TYPES.includes(f.type));
-    const bad = selected.filter((f) => !ACCEPTED_TYPES.includes(f.type)).map((f) => f.name);
+    const accepted = selected.filter(isAcceptedFile);
+    const bad = selected.filter((f) => !isAcceptedFile(f)).map((f) => f.name);
 
     setRejected(bad);
     setItems((prev) => [
@@ -49,6 +94,7 @@ export function UploadForm({ userId, subjects }: { userId: string; subjects: { i
 
   function handleSubmit() {
     if (items.length === 0) return;
+    setSaveError(null);
 
     startTransition(async () => {
       const supabase = createClient();
@@ -83,12 +129,18 @@ export function UploadForm({ userId, subjects }: { userId: string; subjects: { i
       }
 
       if (uploaded.length > 0) {
-        await createMaterialRecords(uploaded);
-        router.refresh();
+        try {
+          await createMaterialRecords(uploaded);
+          router.refresh();
+          // Clear only the ones that succeeded — leave failed ones visible to retry/remove.
+          setItems((prev) => prev.filter((item) => item.status === "error"));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "No se pudo guardar el material.";
+          setSaveError(message);
+        }
+      } else {
+        setItems((prev) => prev.filter((item) => item.status === "error"));
       }
-
-      // Clear only the ones that succeeded — leave failed ones visible to retry/remove.
-      setItems((prev) => prev.filter((item) => item.status === "error"));
     });
   }
 
@@ -100,17 +152,23 @@ export function UploadForm({ userId, subjects }: { userId: string; subjects: { i
         ref={fileInputRef}
         type="file"
         multiple
-        accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown"
+        accept={`.pdf,.txt,.md,.doc,.docx,.ppt,.pptx,.xls,.xlsx,image/*,${ACCEPTED_TYPES.join(",")}`}
         onChange={handleFileChange}
         className="text-sm"
       />
       <p className="text-xs text-foreground/40">
-        Puedes seleccionar varios archivos a la vez (PDF, TXT o Markdown).
+        Puedes seleccionar varios archivos a la vez: PDF, Word, PowerPoint, Excel, fotos o texto plano.
       </p>
 
       {rejected.length > 0 && (
-        <p className="text-sm text-brand-urgent">
-          No se aceptaron (formato no soportado): {rejected.join(", ")}
+        <p className="rounded-lg border border-brand-urgent/40 bg-brand-urgent/10 px-3 py-2 text-sm font-medium text-brand-urgent">
+          ⚠️ No se pudieron subir estos archivos (formato no soportado): {rejected.join(", ")}
+        </p>
+      )}
+
+      {saveError && (
+        <p className="rounded-lg border border-brand-urgent/40 bg-brand-urgent/10 px-3 py-2 text-sm font-medium text-brand-urgent">
+          ⚠️ El archivo se subió pero no se pudo guardar: {saveError}
         </p>
       )}
 

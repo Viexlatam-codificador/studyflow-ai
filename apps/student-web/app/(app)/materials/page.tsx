@@ -30,7 +30,8 @@ export default async function MaterialsPage() {
       <div>
         <h1 className="text-2xl font-semibold">Materiales</h1>
         <p className="text-foreground/60">
-          Sube tus apuntes (PDF, TXT, Markdown), genera un resumen con IA, y compártelos con tu asignatura.
+          Sube tus apuntes (PDF, Word, PowerPoint, Excel, fotos o texto), y compártelos con tu asignatura. El
+          resumen con IA está disponible para PDF, TXT y Markdown.
         </p>
       </div>
 
