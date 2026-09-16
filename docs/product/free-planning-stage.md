@@ -163,26 +163,34 @@ migraciones se aplicaron y se verificó en vivo el recorrido completo —
 signup → perfil → disponibilidad → generar plan → completar sesión →
 generar contexto de Gemini — con una cuenta de prueba que se borró después.
 
-### Lo que sigue sin probarse (requiere un segundo usuario o concurrencia real)
+### Verificado después, con dos cuentas reales y concurrencia real
 
-- **Aislamiento entre dos usuarios (RLS)**: crear dos cuentas de prueba,
-  generar un plan para cada una, y confirmar con el cliente anon-key (nunca
-  service-role) que el usuario A no puede leer/escribir filas de
-  `study_profiles`, `availability_*`, `study_plan_items`, `gemini_proposals`
-  ni `study_observations` del usuario B, ni pasando su `user_id` a mano.
-  Solo se probó con una cuenta a la vez.
-- **Regeneración sin duplicados bajo concurrencia real**: disparar
-  `regeneratePlan()` dos veces en paralelo (doble clic real, no simulado) y
-  confirmar en la tabla que existe una sola fila en `study_plans` para
-  `(user_id, week_start)` y que `study_plan_items` no tiene filas duplicadas.
-  Se verificó que una sola llamada funciona correctamente en producción
-  (incluida la corrección del índice, `0025`); la garantía bajo concurrencia
-  real sigue sin probarse con dos requests simultáneos de verdad.
-- **JSON inválido/excesivo/obsoleto/con `taskId` ajeno** contra la validación
-  real: la lógica de `validateGeminiProposal` y el chequeo de staleness en
-  `importGeminiProposal` se verificaron generando un contexto real (ver
-  abajo), pero no se probaron deliberadamente los casos de error (JSON roto,
-  `taskId` ajeno, contexto obsoleto) contra la base ya en producción.
+Con dos cuentas de prueba nuevas (A y B, cada una en una sesión de
+navegador distinta y con cookies separadas — no una simulación) y una
+página de diagnóstico temporal (desplegada, probada, y luego eliminada y
+redeployada sin ella — nunca quedó comiteada):
+
+- **Aislamiento RLS**: A guardó perfil, disponibilidad y un plan real
+  (1 fila en cada una de `study_profiles`, `availability_blocks`,
+  `study_plan_items`). Desde la sesión de B, usando el mismo cliente
+  anon-key + cookie de sesión que usa toda la app (nunca service-role),
+  se intentó leer esas mismas filas por `user_id` de A: **0 filas
+  visibles en las 5 tablas nuevas** (`study_profiles`,
+  `availability_blocks`, `study_plan_items`, `gemini_proposals`,
+  `study_observations`). Se confirmó que no era un falso positivo
+  repitiendo la misma consulta como A contra su propio id (ahí sí
+  aparecieron las filas reales).
+- **Regeneración concurrente sin duplicados**: dos pestañas con la misma
+  sesión de A, ambas en `/study/plan`, presionando "Regenerar plan" en el
+  mismo batch de acciones (lo más simultáneo que permite la
+  automatización). Resultado real en la base: exactamente **1 fila** en
+  `study_plans` para `(user_id, week_start)` y **1 fila** en
+  `study_plan_items` (sin duplicados) para la tarea de prueba.
+
+Lo único que sigue sin probarse deliberadamente: los casos de error del
+JSON pegado desde Gemini (roto, `taskId` ajeno, contexto obsoleto) contra
+la base ya en producción — la ruta feliz (contexto real generado y
+registrado en `gemini_proposals`) sí se verificó en vivo.
 
 ---
 
