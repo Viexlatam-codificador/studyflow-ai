@@ -1,14 +1,18 @@
 import { listUsers } from "@/lib/data/users";
 import { grantComplimentaryAccess, revokeAccess } from "@/lib/actions/users";
+import { ExportUsersButton } from "./export-users-button";
 
 export default async function UsersPage() {
   const users = await listUsers();
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Usuarios</h1>
-        <p className="text-foreground/60">{users.length} usuarios registrados.</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Usuarios</h1>
+          <p className="text-foreground/60">{users.length} usuarios registrados.</p>
+        </div>
+        <ExportUsersButton users={users} />
       </div>
 
       <div className="overflow-x-auto rounded-2xl border border-border bg-card">
@@ -18,6 +22,7 @@ export default async function UsersPage() {
               <th className="px-4 py-3 font-medium">Usuario</th>
               <th className="px-4 py-3 font-medium">Roles</th>
               <th className="px-4 py-3 font-medium">Plan</th>
+              <th className="px-4 py-3 font-medium">Registrado</th>
               <th className="px-4 py-3 font-medium">Acceso gratuito</th>
             </tr>
           </thead>
@@ -36,6 +41,7 @@ export default async function UsersPage() {
                     {u.planKey}
                   </span>
                 </td>
+                <td className="px-4 py-3 text-foreground/50">{u.createdAt.slice(0, 10)}</td>
                 <td className="px-4 py-3">
                   {u.roles.includes("OWNER") ? (
                     <span className="text-xs text-foreground/40">OWNER (lifetime)</span>
