@@ -3,26 +3,20 @@ import Link from "next/link";
 const FEATURES = [
   {
     title: "StudyFlow Inbox",
-    body: "Escribe, sube una foto de la pizarra o cuenta lo que dijo el profesor. StudyFlow detecta la tarea y te la muestra antes de guardarla — nunca sin tu confirmación.",
+    body: "Escribe, sube una foto de la pizarra o de tus apuntes. StudyFlow detecta la tarea y te la muestra antes de guardarla — nunca sin tu confirmación.",
   },
   {
-    title: "Planificador IA",
-    body: "Prioriza tus tareas según urgencia, peso de nota, dificultad y el tiempo que realmente tienes disponible.",
-  },
-  {
-    title: "Tutor con tus materiales",
-    body: "Chatea con IA sobre tus propios apuntes y documentos, con las fuentes citadas.",
+    title: "Plan semanal explicado",
+    body: "Un motor gratuito (sin IA) revisa tus pendientes, tu disponibilidad real y tu nivel declarado, y te propone sesiones concretas para los próximos días — con el motivo de cada prioridad.",
   },
   {
     title: "Tengo X minutos",
-    body: "Dile a StudyFlow cuánto tiempo tienes y te dice exactamente qué avanzar ahora, y por qué.",
+    body: "Dile a StudyFlow cuánto tiempo tienes ahora mismo y te sugiere un paso pequeño y concreto, no solo el nombre de la tarea.",
   },
-];
-
-const PLANS = [
-  { name: "Free", price: "$0", tagline: "Organiza tus asignaturas y tareas manuales.", cta: "Comenzar gratis" },
-  { name: "Pro", price: "$9.99/mes", tagline: "IA, planificador inteligente y tutor.", cta: "Elegir Pro", featured: true },
-  { name: "Campus", price: "Institucional", tagline: "Licenciamiento por institución.", cta: "Hablemos" },
+  {
+    title: "Personaliza con tu Gemini",
+    body: "Copia un contexto compacto, pégalo en tu propia cuenta de Gemini, y trae su respuesta de vuelta — StudyFlow decide dónde ubicarla en tu plan. Nunca te pedimos tu contraseña ni accedemos a tu cuenta de Google.",
+  },
 ];
 
 export default function LandingPage() {
@@ -48,11 +42,12 @@ export default function LandingPage() {
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-24 px-6 py-16">
         <section className="flex flex-col items-start gap-6">
           <h1 className="max-w-2xl text-4xl font-semibold tracking-tight sm:text-5xl">
-            Tu estudio, <span className="brand-gradient-text">organizado por IA.</span>
+            Un plan de estudio <span className="brand-gradient-text">hecho para ti,</span> no solo un calendario.
           </h1>
           <p className="max-w-xl text-lg text-foreground/70">
-            Reúne tus clases, tareas, documentos y evaluaciones. StudyFlow te dice qué hacer,
-            cuándo hacerlo y te ayuda a avanzar.
+            Reúne tus tareas y evaluaciones, dinos tu disponibilidad real, y StudyFlow convierte eso en sesiones
+            concretas para esta semana — qué estudiar, cuándo, y por qué es prioridad. Gratis, sin tarjeta, sin
+            necesitar configurar ninguna IA.
           </p>
           <div className="flex gap-4">
             <Link
@@ -68,6 +63,10 @@ export default function LandingPage() {
               Ver cómo funciona
             </Link>
           </div>
+          <p className="text-xs text-foreground/40">
+            StudyFlow no promete que vas a terminar todo ni que vas a aprobar — te muestra tu carga real y te
+            ayuda a decidir qué hacer con el tiempo que tienes.
+          </p>
         </section>
 
         <section id="como-funciona" className="grid gap-8 sm:grid-cols-2">
@@ -79,30 +78,14 @@ export default function LandingPage() {
           ))}
         </section>
 
-        <section id="planes" className="flex flex-col gap-6">
-          <h2 className="text-2xl font-semibold">Planes</h2>
-          <div className="grid gap-6 sm:grid-cols-3">
-            {PLANS.map((p) => (
-              <div
-                key={p.name}
-                className={`flex flex-col gap-3 rounded-2xl border p-6 ${
-                  p.featured ? "border-brand-violet bg-card" : "border-border bg-card"
-                }`}
-              >
-                <span className="text-sm font-medium text-foreground/60">{p.name}</span>
-                <span className="text-2xl font-semibold">{p.price}</span>
-                <p className="text-sm text-foreground/70">{p.tagline}</p>
-                <Link
-                  href="/signup"
-                  className={`mt-2 rounded-full px-4 py-2 text-center text-sm font-medium ${
-                    p.featured ? "brand-gradient text-white" : "border border-border"
-                  }`}
-                >
-                  {p.cta}
-                </Link>
-              </div>
-            ))}
-          </div>
+        <section className="rounded-2xl border border-border bg-card p-6">
+          <h2 className="mb-2 text-xl font-semibold">Qué hace StudyFlow y qué haces tú en Gemini</h2>
+          <p className="text-sm text-foreground/70">
+            StudyFlow organiza tus tareas, calcula prioridades y arma tu plan semanal sin depender de ninguna IA
+            — funciona completo aunque nunca uses la parte de Gemini. Si quieres una segunda opinión, StudyFlow
+            prepara un resumen que tú copias y pegas en tu propia cuenta de Gemini; la respuesta la traes de
+            vuelta y decides qué incorporar. StudyFlow nunca inicia sesión en Google por ti ni accede a tu cuenta.
+          </p>
         </section>
       </main>
 

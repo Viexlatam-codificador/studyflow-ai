@@ -15,7 +15,7 @@ apps/mobile       ──┘             │
 ```
 
 - **student-web** y **admin-web** son dos apps Next.js independientes,
-  desplegadas por separado en Vercel. No comparten sesión de auth (cada
+  desplegadas por separado en Netlify. No comparten sesión de auth (cada
   una gestiona su propio login contra el mismo proyecto Supabase).
 - Toda lógica de negocio compartida vive en `packages/`, nunca duplicada
   entre apps.

@@ -1,22 +1,25 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
-import { recommendForAvailableTime } from "@studyflow/academic-core";
+import { recommendForAvailableTime, buildMicroStep, QUICK_MINUTE_OPTIONS } from "@studyflow/academic-core";
 import type { TaskWithSubject } from "@/lib/data/tasks";
 import { startStudySession, endStudySession, setPreferredAiProvider } from "@/lib/actions/study";
 import { AI_PROVIDERS, buildAiUrl, buildStudyPrompt, type AiProvider } from "@/lib/ai-study-prompt";
 import { formatShortDate } from "@/lib/format-date";
 
-const TIME_OPTIONS = [15, 30, 45, 60, 90, 120];
-
 export function StudyClient({
   tasks,
   initialProvider,
+  subjects,
 }: {
   tasks: TaskWithSubject[];
   initialProvider: AiProvider | null;
+  subjects: { id: string; name: string }[];
 }) {
   const [availableMinutes, setAvailableMinutes] = useState<number | null>(null);
+  const [customMinutes, setCustomMinutes] = useState("");
+  const [reviewSubject, setReviewSubject] = useState<string | null>(null);
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [provider, setProvider] = useState<AiProvider | null>(initialProvider);
@@ -48,6 +51,14 @@ export function StudyClient({
   const recommendation = useMemo(
     () => (availableMinutes ? recommendForAvailableTime(tasks, availableMinutes) : null),
     [availableMinutes, tasks]
+  );
+
+  const microStep = useMemo(
+    () =>
+      recommendation && availableMinutes
+        ? buildMicroStep(recommendation.task as TaskWithSubject, availableMinutes, new Date())
+        : null,
+    [recommendation, availableMinutes]
   );
 
   useEffect(() => {
@@ -110,11 +121,14 @@ export function StudyClient({
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap gap-2">
-        {TIME_OPTIONS.map((m) => (
+      <div className="flex flex-wrap items-center gap-2">
+        {QUICK_MINUTE_OPTIONS.map((m) => (
           <button
             key={m}
-            onClick={() => setAvailableMinutes(m)}
+            onClick={() => {
+              setAvailableMinutes(m);
+              setCustomMinutes("");
+            }}
             className={`rounded-full border px-4 py-2 text-sm font-medium ${
               availableMinutes === m ? "brand-gradient border-transparent text-white" : "border-border"
             }`}
@@ -122,10 +136,53 @@ export function StudyClient({
             {m} min
           </button>
         ))}
+        <input
+          type="number"
+          min={1}
+          max={600}
+          value={customMinutes}
+          onChange={(e) => {
+            setCustomMinutes(e.target.value);
+            const n = Number(e.target.value);
+            setAvailableMinutes(n > 0 ? n : null);
+          }}
+          placeholder="Otro (min)"
+          className="w-28 rounded-full border border-border bg-background px-4 py-2 text-sm"
+        />
       </div>
 
       {availableMinutes && !recommendation && (
-        <p className="text-sm text-foreground/50">No tienes tareas pendientes — ¡vas al día!</p>
+        <div className="rounded-2xl border border-dashed border-border p-6 text-center">
+          <p className="text-sm text-foreground/60">No tienes tareas pendientes para recomendarte algo ahora.</p>
+          <div className="mt-4 flex flex-wrap justify-center gap-3">
+            <Link href="/inbox" className="brand-gradient rounded-full px-4 py-2 text-sm font-medium text-white">
+              Crear mi primera tarea
+            </Link>
+          </div>
+          {subjects.length > 0 && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs text-foreground/50">O elige un tema para repasar sin una tarea puntual:</p>
+              <div className="flex flex-wrap justify-center gap-2">
+                {subjects.map((s) => (
+                  <button
+                    key={s.id}
+                    onClick={() => setReviewSubject(s.name)}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-medium ${
+                      reviewSubject === s.name ? "brand-gradient border-transparent text-white" : "border-border"
+                    }`}
+                  >
+                    {s.name}
+                  </button>
+                ))}
+              </div>
+              {reviewSubject && availableMinutes && (
+                <p className="mt-3 text-sm text-foreground/70">
+                  {buildMicroStep({ id: "review", title: reviewSubject, subjectId: null, subjectName: reviewSubject, dueAt: null, estimatedMinutes: null, gradeWeight: null, difficulty: null, progressPercentage: 0, status: "NEW" }, availableMinutes, new Date())}
+                </p>
+              )}
+            </div>
+          )}
+        </div>
       )}
 
       {recommendation && (
@@ -133,6 +190,9 @@ export function StudyClient({
           <p className="mb-1 text-sm font-medium text-brand-violet">Lo mejor que puedes hacer ahora</p>
           <p className="text-lg font-semibold">{recommendation.task.title}</p>
           <p className="mt-2 text-sm text-foreground/60">{recommendation.reason}</p>
+          {microStep && (
+            <p className="mt-3 rounded-lg bg-brand-violet/5 p-3 text-sm text-foreground/80">{microStep}</p>
+          )}
           <button
             disabled={isPending}
             onClick={() =>

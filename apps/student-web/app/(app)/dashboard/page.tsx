@@ -1,8 +1,11 @@
 import Link from "next/link";
 import { listTasksForCurrentUser, rankByPriority } from "@/lib/data/tasks";
 import { requireCurrentUser } from "@/lib/data/current-user";
+import { getAvailability } from "@/lib/data/availability";
 import { TaskCard } from "@/components/task-card";
 import { getMotivationalMessage } from "@/lib/motivation";
+import { computeAvailableWindows } from "@studyflow/academic-core";
+import { formatShortDate } from "@/lib/format-date";
 
 function isSameDay(a: Date, b: Date): boolean {
   return a.toDateString() === b.toDateString();
@@ -10,7 +13,7 @@ function isSameDay(a: Date, b: Date): boolean {
 
 export default async function DashboardPage() {
   const user = await requireCurrentUser();
-  const tasks = await listTasksForCurrentUser();
+  const [tasks, availability] = await Promise.all([listTasksForCurrentUser(), getAvailability()]);
   const pending = tasks.filter((t) => t.status !== "COMPLETED" && t.status !== "SUBMITTED");
   const ranked = rankByPriority(pending);
 
@@ -22,6 +25,21 @@ export default async function DashboardPage() {
   const today = pending.filter((t) => t.dueAt && isSameDay(new Date(t.dueAt), now));
   const tomorrowTasks = pending.filter((t) => t.dueAt && isSameDay(new Date(t.dueAt), tomorrow));
   const topRecommendation = ranked[0];
+
+  const nextEvaluation = pending
+    .filter((t) => t.gradeWeight && t.gradeWeight > 0 && t.dueAt)
+    .sort((a, b) => new Date(a.dueAt!).getTime() - new Date(b.dueAt!).getTime())[0];
+
+  const todayWindows = computeAvailableWindows(
+    now,
+    availability.settings.timezone,
+    availability.blocks.map((b) => ({ id: b.id, userId: user.id, kind: b.kind, title: b.title, dayOfWeek: b.dayOfWeek, startTime: b.startTime, endTime: b.endTime })),
+    availability.exceptions.map((e) => ({ id: e.id, userId: user.id, exceptionDate: e.exceptionDate, kind: e.kind, startTime: e.startTime, endTime: e.endTime, note: e.note })),
+    { userId: user.id, ...availability.settings },
+    [],
+    1
+  );
+  const minutesAvailableToday = Math.round(todayWindows.reduce((sum, w) => sum + (w.endsAt.getTime() - w.startsAt.getTime()) / 60000, 0));
 
   const completedThisWeek = tasks.filter((t) => {
     if (t.status !== "COMPLETED" && t.status !== "SUBMITTED") return false;
@@ -72,6 +90,46 @@ export default async function DashboardPage() {
         <StatCard label="Vencidas" value={overdue.length} tone="urgent" />
         <StatCard label="Hoy" value={today.length} tone="warning" />
         <StatCard label="Completadas esta semana" value={completedThisWeek} tone="success" />
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm text-foreground/60">Próxima evaluación</p>
+          {nextEvaluation ? (
+            <>
+              <p className="font-semibold">{nextEvaluation.title}</p>
+              <p className="text-xs text-foreground/50">
+                {nextEvaluation.subjectName ?? "Sin asignatura"} · {formatShortDate(new Date(nextEvaluation.dueAt!))} · vale{" "}
+                {nextEvaluation.gradeWeight}%
+              </p>
+            </>
+          ) : (
+            <p className="text-sm text-foreground/40">No tienes evaluaciones con fecha registrada.</p>
+          )}
+        </div>
+        <div className="rounded-xl border border-border bg-card p-4">
+          <p className="text-sm text-foreground/60">Tiempo disponible hoy</p>
+          <p className="font-semibold">{minutesAvailableToday} min</p>
+          <p className="text-xs text-foreground/50">
+            Según tu{" "}
+            <Link href="/study/availability" className="text-brand-violet hover:underline">
+              disponibilidad declarada
+            </Link>
+            .
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-3">
+        <Link href="/study" className="brand-gradient rounded-full px-4 py-2 text-sm font-medium text-white">
+          Tengo X minutos
+        </Link>
+        <Link href="/inbox" className="rounded-full border border-border px-4 py-2 text-sm font-medium hover:bg-foreground/5">
+          Capturar una tarea
+        </Link>
+        <Link href="/study/plan" className="rounded-full border border-border px-4 py-2 text-sm font-medium hover:bg-foreground/5">
+          Ver mi plan semanal
+        </Link>
       </div>
 
       <Section title="Urgente" tasks={overdue} emptyText="No tienes tareas vencidas." />

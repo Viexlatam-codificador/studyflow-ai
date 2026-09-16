@@ -1689,3 +1689,376 @@ alter table profiles
 alter table profiles
   add constraint profiles_preferred_ai_provider_check
   check (preferred_ai_provider is null or preferred_ai_provider in ('chatgpt', 'gemini', 'claude', 'notebooklm'));
+
+-- ---------------------------------------------------------------------------
+-- 0018_study_profile.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — Free study-planning stage: editable study profile
+-- (master spec section 3). Every field here is a *declared preference*,
+-- never an inferred diagnosis — see study_subject_confidence below for why
+-- confidence is tracked separately from "comprehension reported after a
+-- session" and "exercise result", instead of collapsing all three into one
+-- number.
+
+create table study_profiles (
+  user_id uuid primary key references profiles (id) on delete cascade,
+  academic_goal text,
+  -- Subset of ('examples','steps','diagrams','exercises','questions','mixed').
+  -- Validated at the app layer against @studyflow/shared EXPLANATION_METHODS;
+  -- kept as a plain text[] here (Postgres enum[] alterations are painful,
+  -- and this list is expected to evolve).
+  explanation_methods text[] not null default '{}',
+  session_duration_minutes int check (session_duration_minutes is null or session_duration_minutes between 5 and 240),
+  schedule_preference text check (schedule_preference in ('MORNING', 'AFTERNOON', 'EVENING', 'NIGHT', 'FLEXIBLE')),
+  minutes_per_week int check (minutes_per_week is null or minutes_per_week between 0 and 10080),
+  limitations_note text,
+  free_notes text, -- "Cuéntanos cómo estudias" — free text, never auto-interpreted (section 3)
+  onboarding_skipped boolean not null default false,
+  updated_at timestamptz not null default now()
+);
+
+create trigger study_profiles_set_updated_at
+  before update on study_profiles
+  for each row execute function set_updated_at();
+
+-- One row per (user, subject). `source` is forward-compatible: only
+-- 'DECLARED' is ever written from the profile form today. 'REPORTED' and
+-- 'EXERCISE_RESULT' evidence is derived at read time from study_sessions —
+-- never stored here — so the UI can distinguish "the student told us" from
+-- "we measured it" instead of quietly merging both into one value.
+create table study_subject_confidence (
+  user_id uuid not null references profiles (id) on delete cascade,
+  subject_id uuid not null references subjects (id) on delete cascade,
+  confidence smallint not null check (confidence between 1 and 5),
+  source text not null default 'DECLARED' check (source in ('DECLARED', 'REPORTED', 'EXERCISE_RESULT')),
+  updated_at timestamptz not null default now(),
+  primary key (user_id, subject_id)
+);
+
+create index study_subject_confidence_user_id_idx on study_subject_confidence (user_id);
+
+create trigger study_subject_confidence_set_updated_at
+  before update on study_subject_confidence
+  for each row execute function set_updated_at();
+
+alter table study_profiles enable row level security;
+alter table study_subject_confidence enable row level security;
+
+create policy study_profiles_owner_only on study_profiles
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+create policy study_subject_confidence_owner_only on study_subject_confidence
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+-- ---------------------------------------------------------------------------
+-- 0019_study_availability.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — Real availability (master spec section 4).
+-- The planner must never treat an unlabeled empty hour as free time — only
+-- an explicit STUDY_WINDOW block (plus an EXTRA_AVAILABLE exception) is
+-- ever schedulable. CLASS/WORK/OTHER exist so the student's real commitments
+-- are visible even though the planner only *needs* them to know what to
+-- avoid overlapping if a STUDY_WINDOW is accidentally drawn over one.
+
+create table availability_blocks (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles (id) on delete cascade,
+  kind text not null check (kind in ('CLASS', 'WORK', 'OTHER', 'STUDY_WINDOW')),
+  title text, -- optional generic label, e.g. "Trabajo" — never required
+  day_of_week smallint not null check (day_of_week between 0 and 6), -- 0=Sun .. 6=Sat
+  start_time time not null,
+  end_time time not null,
+  created_at timestamptz not null default now(),
+  constraint availability_blocks_time_order check (end_time > start_time)
+);
+
+create index availability_blocks_user_id_idx on availability_blocks (user_id);
+
+create table availability_exceptions (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles (id) on delete cascade,
+  exception_date date not null,
+  kind text not null check (kind in ('UNAVAILABLE', 'EXTRA_AVAILABLE')),
+  start_time time, -- null + UNAVAILABLE = blocks the whole day
+  end_time time,
+  note text,
+  created_at timestamptz not null default now(),
+  constraint availability_exceptions_time_order check (
+    (start_time is null and end_time is null) or (end_time > start_time)
+  ),
+  constraint availability_exceptions_extra_needs_times check (
+    kind = 'UNAVAILABLE' or (start_time is not null and end_time is not null)
+  )
+);
+
+create index availability_exceptions_user_id_idx on availability_exceptions (user_id);
+create index availability_exceptions_date_idx on availability_exceptions (exception_date);
+
+create table availability_settings (
+  user_id uuid primary key references profiles (id) on delete cascade,
+  timezone text not null default 'America/Santiago',
+  max_daily_minutes int not null default 180 check (max_daily_minutes between 0 and 1440),
+  break_minutes int not null default 10 check (break_minutes between 0 and 120),
+  break_every_minutes int not null default 50 check (break_every_minutes between 5 and 480),
+  updated_at timestamptz not null default now()
+);
+
+create trigger availability_settings_set_updated_at
+  before update on availability_settings
+  for each row execute function set_updated_at();
+
+alter table availability_blocks enable row level security;
+alter table availability_exceptions enable row level security;
+alter table availability_settings enable row level security;
+
+create policy availability_blocks_owner_only on availability_blocks
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+create policy availability_exceptions_owner_only on availability_exceptions
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+create policy availability_settings_owner_only on availability_settings
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+-- ---------------------------------------------------------------------------
+-- 0020_study_plan_extensions.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — Extend the existing study_plans / study_plan_items tables
+-- for the free weekly planner (master spec section 5), instead of creating
+-- parallel tables. These tables existed since 0006 but nothing ever wrote
+-- to them yet (see docs/product/roadmap.md: "hoy solo existe el motor de
+-- prioridad ... falta el generador de sesiones") — safe to add required
+-- columns without a backfill.
+
+alter table study_plans
+  add column status text not null default 'ACTIVE' check (status in ('DRAFT', 'ACTIVE', 'ARCHIVED')),
+  add column week_start date,
+  add column generated_at timestamptz not null default now(),
+  add column unassigned_minutes int not null default 0 check (unassigned_minutes >= 0);
+
+-- One active plan per (user, week) — makes "regenerar" an idempotent
+-- upsert (`on conflict (user_id, week_start) do update`) instead of ever
+-- creating duplicate plans, even from a double click or two concurrent
+-- requests (master spec section 10).
+create unique index study_plans_user_week_idx on study_plans (user_id, week_start) where week_start is not null;
+
+alter table study_plan_items
+  add column subject_id uuid references subjects (id) on delete set null,
+  add column starts_at timestamptz,
+  add column ends_at timestamptz,
+  add column objective text,
+  add column method text check (method in ('examples', 'steps', 'diagrams', 'exercises', 'questions', 'mixed')),
+  add column expected_result text,
+  add column priority_reason text,
+  add column origin text not null default 'ENGINE' check (origin in ('ENGINE', 'GEMINI')),
+  add column status text not null default 'PLANNED' check (status in ('PLANNED', 'COMPLETED', 'SKIPPED')),
+  add column is_fixed boolean not null default false;
+
+-- Belt-and-suspenders against duplicate inserts from a concurrent
+-- regenerate: the same task can't occupy the same start instant twice in
+-- one plan. Paired with `on conflict do nothing` in the regenerate action.
+create unique index study_plan_items_dedupe_idx on study_plan_items (study_plan_id, task_id, starts_at);
+
+create index study_plan_items_starts_at_idx on study_plan_items (starts_at);
+
+-- `is_completed` predates this migration and stays for backward
+-- compatibility with any existing reads — new code should prefer `status`.
+comment on column study_plan_items.is_completed is 'Deprecated in favor of status = COMPLETED; kept for compatibility.';
+
+-- ---------------------------------------------------------------------------
+-- 0021_study_session_results.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — Richer session completion capture (master spec section 8).
+-- Extends the existing study_sessions table instead of creating a parallel
+-- "results" table — a session and its result are the same event.
+--
+-- Deliberately separate from study_subject_confidence: time spent, comfort,
+-- and difficulty are not the same thing as mastery. `comprehension_rating`
+-- is self-reported and stored here as evidence for the adaptation engine;
+-- it never silently overwrites study_subject_confidence.
+
+alter table study_sessions
+  add column study_plan_item_id uuid references study_plan_items (id) on delete set null,
+  add column objective_status text check (objective_status in ('COMPLETED', 'PARTIAL', 'PENDING')),
+  add column comprehension_rating smallint check (comprehension_rating between 1 and 5),
+  add column difficulty_rating smallint check (difficulty_rating between 1 and 5),
+  add column method_used text check (method_used in ('examples', 'steps', 'diagrams', 'exercises', 'questions', 'mixed')),
+  add column check_result jsonb; -- {"correct": n, "total": n} — optional, only when a quick check happened
+
+create index study_sessions_study_plan_item_id_idx on study_sessions (study_plan_item_id);
+create index study_sessions_subject_id_idx on study_sessions (subject_id);
+
+-- ---------------------------------------------------------------------------
+-- 0022_gemini_proposals.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — "Personalizar con mi Gemini" (master spec section 7).
+-- StudyFlow never talks to Gemini programmatically: the student copies a
+-- context StudyFlow built, pastes it into https://gemini.google.com/app
+-- themselves, and pastes the answer back here. This table records both
+-- halves of that round trip for audit and for the staleness check
+-- ("rechaza propuestas obsoletas si las tareas ... cambiaron").
+
+create table gemini_proposals (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles (id) on delete cascade,
+  study_plan_id uuid references study_plans (id) on delete set null,
+  schema_version int not null,
+  -- sha256 of the exported context's task/constraint snapshot — an import
+  -- is rejected as stale if the current snapshot's hash no longer matches.
+  context_hash text not null,
+  context_snapshot jsonb not null,
+  -- The raw pasted-back text, kept for audit even if validation fails —
+  -- never executed, never treated as anything but a JSON payload to parse.
+  raw_response text,
+  proposal jsonb,
+  status text not null default 'PENDING_EXPORT' check (
+    status in ('PENDING_EXPORT', 'PENDING_REVIEW', 'APPLIED', 'REJECTED', 'STALE', 'INVALID')
+  ),
+  created_at timestamptz not null default now(),
+  applied_at timestamptz
+);
+
+create index gemini_proposals_user_id_idx on gemini_proposals (user_id);
+create index gemini_proposals_status_idx on gemini_proposals (status);
+
+alter table gemini_proposals enable row level security;
+
+create policy gemini_proposals_owner_only on gemini_proposals
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+-- ---------------------------------------------------------------------------
+-- 0023_study_observations.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — Adaptation observations (master spec section 8). Proposed
+-- by the rule-based engine in packages/academic-core, never applied
+-- automatically — status only moves to ACCEPTED when the student confirms.
+
+create table study_observations (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references profiles (id) on delete cascade,
+  subject_id uuid references subjects (id) on delete set null,
+  type text not null check (type in ('SHORTER_SESSIONS', 'LONGER_ESTIMATES', 'MORE_PRACTICE', 'DIFFERENT_METHOD')),
+  evidence_count int not null check (evidence_count >= 3), -- must match MIN_EVIDENCE_SESSIONS
+  rationale text not null,
+  suggested_change jsonb not null,
+  status text not null default 'PROPOSED' check (status in ('PROPOSED', 'ACCEPTED', 'DISMISSED')),
+  created_at timestamptz not null default now(),
+  resolved_at timestamptz
+);
+
+create index study_observations_user_id_idx on study_observations (user_id);
+create index study_observations_status_idx on study_observations (status);
+
+-- Avoid re-proposing the exact same open observation every time the
+-- adaptation check runs (e.g. after each completed session). subject_id is
+-- nullable (SHORTER_SESSIONS is a global observation, not per-subject) —
+-- Postgres treats NULL <> NULL in a plain unique index, so we coalesce to
+-- a sentinel to actually dedupe the null case too.
+create unique index study_observations_open_dedupe_idx
+  on study_observations (user_id, (coalesce(subject_id, '00000000-0000-0000-0000-000000000000'::uuid)), type)
+  where status = 'PROPOSED';
+
+alter table study_observations enable row level security;
+
+create policy study_observations_owner_only on study_observations
+  for all using (user_id = auth.uid() or is_staff())
+  with check (user_id = auth.uid() or is_staff());
+
+-- ---------------------------------------------------------------------------
+-- 0024_regenerate_study_plan_function.sql
+-- ---------------------------------------------------------------------------
+-- StudyFlow AI — Transactional, idempotent plan regeneration (master spec
+-- section 10: "la regeneración debe ser idempotente, preservar historial y
+-- evitar duplicados incluso con doble clic o solicitudes concurrentes").
+--
+-- A Postgres function body runs inside one transaction automatically, which
+-- is the only way to get real atomicity here — supabase-js's REST API has
+-- no multi-statement client transaction. `security invoker` (the default)
+-- keeps this running as the calling user, so every existing RLS policy on
+-- study_plans / study_plan_items still applies — this function grants no
+-- extra privilege, it only makes the upsert+replace atomic.
+
+create or replace function regenerate_study_plan(
+  p_week_start date,
+  p_title text,
+  p_unassigned_minutes int,
+  p_items jsonb -- array of {taskId, subjectId, startsAt, endsAt, objective, method, expectedResult, priorityReason, origin}
+) returns uuid
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_plan_id uuid;
+  v_bad_task_count int;
+begin
+  if auth.uid() is null then
+    raise exception 'not authenticated';
+  end if;
+
+  -- Defense in depth: RLS already scopes study_plan_items to plans the
+  -- caller owns, but a task_id inside the payload could in principle name
+  -- someone else's task — never trust it just because it parses as a uuid.
+  select count(*) into v_bad_task_count
+  from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) as item
+  where (item->>'taskId') is not null
+    and not exists (
+      select 1 from tasks t where t.id = (item->>'taskId')::uuid and t.user_id = auth.uid()
+    );
+
+  if v_bad_task_count > 0 then
+    raise exception 'one or more items reference a task the caller does not own';
+  end if;
+
+  insert into study_plans (user_id, title, starts_on, ends_on, week_start, status, generated_at, unassigned_minutes)
+  values (auth.uid(), p_title, p_week_start, p_week_start + 6, p_week_start, 'ACTIVE', now(), coalesce(p_unassigned_minutes, 0))
+  on conflict (user_id, week_start) do update
+    set title = excluded.title,
+        generated_at = excluded.generated_at,
+        unassigned_minutes = excluded.unassigned_minutes,
+        status = 'ACTIVE'
+  returning id into v_plan_id;
+
+  -- Replace only what the engine is allowed to touch: never-completed,
+  -- never-pinned items. Completed sessions and explicitly fixed items are
+  -- untouched, which is what "preservar historial" and "conservar ...
+  -- bloques fijados" require.
+  delete from study_plan_items
+  where study_plan_id = v_plan_id
+    and is_fixed = false
+    and status <> 'COMPLETED';
+
+  insert into study_plan_items (
+    study_plan_id, task_id, subject_id, starts_at, ends_at, scheduled_date, scheduled_minutes,
+    objective, method, expected_result, priority_reason, origin, status, is_fixed
+  )
+  select
+    v_plan_id,
+    (item->>'taskId')::uuid,
+    (item->>'subjectId')::uuid,
+    (item->>'startsAt')::timestamptz,
+    (item->>'endsAt')::timestamptz,
+    ((item->>'startsAt')::timestamptz)::date,
+    round(extract(epoch from ((item->>'endsAt')::timestamptz - (item->>'startsAt')::timestamptz)) / 60)::int,
+    item->>'objective',
+    item->>'method',
+    item->>'expectedResult',
+    item->>'priorityReason',
+    coalesce(item->>'origin', 'ENGINE'),
+    'PLANNED',
+    false
+  from jsonb_array_elements(coalesce(p_items, '[]'::jsonb)) as item
+  on conflict (study_plan_id, (coalesce(task_id, '00000000-0000-0000-0000-000000000000'::uuid)), starts_at) do nothing;
+
+  return v_plan_id;
+end;
+$$;
+
+comment on function regenerate_study_plan is
+  'Atomically upserts the ACTIVE plan for (auth.uid(), p_week_start) and replaces its non-fixed, non-completed items. security invoker: relies entirely on existing RLS, grants no new privilege.';

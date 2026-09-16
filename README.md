@@ -8,18 +8,21 @@ documentos y evaluaciones en un solo lugar, y responde una pregunta —
 
 Founder & Creator: **Nicolás Leiva**
 
-## Estado actual (Fase 1 — MVP)
+## Estado actual (producto en producción)
 
 Implementado y funcionando (build + typecheck + lint verdes):
 
-- **Landing page** (`apps/student-web`) con propuesta de valor y planes.
+- **Landing page** (`apps/student-web`) y PWA instalable.
 - **Auth** con Supabase (signup/login/logout, verificación de email).
 - **Onboarding**: institución → carrera → semestre → asignaturas.
 - **Dashboard** ("¿Qué debo hacer hoy?"): urgente/hoy/mañana, recomendación IA.
 - **Tareas**: CRUD manual + prioridad calculada (`packages/academic-core`).
-- **StudyFlow Inbox (texto)**: extrae una tarea de un texto libre, siempre
-  con confirmación manual antes de guardar — nunca automático.
-- **Calendario**: vista de 14 días con tareas/evaluaciones.
+- **Calendario mensual**: tareas/evaluaciones, reagendamiento, check-off,
+  quick-add y feed ICS para calendarios externos.
+- **Inbox con texto y foto**: extracción con IA opcional y fallback local por
+  reglas, siempre con confirmación antes de guardar.
+- **Materiales**: subida múltiple y opción de compartir por asignatura.
+- **Colaboración**: invitaciones por correo y enlaces a documentos externos.
 - **Sesión de estudio** + modo "Tengo X minutos".
 - **Founder Admin** (`apps/admin-web`): dashboard de métricas, usuarios y
   licencias gratuitas, instituciones, feature flags, auditoría.
@@ -28,10 +31,12 @@ Implementado y funcionando (build + typecheck + lint verdes):
 - **AIProvider**: abstracción con adaptadores OpenAI / Anthropic / Google
   Gemini — cambiar de proveedor es una variable de entorno, no código.
 
-Pendiente (ver `STUDYFLOW_DEVELOPMENT_REPORT.md` para el detalle):
-subida de documentos + RAG real, fotos de pizarra, audio del profesor,
-Flutter mobile, notificaciones push, integración Blackboard real (requiere
-autorización institucional), Stripe.
+Pendiente: tutor con recuperación y citas de extremo a extremo, audio,
+notificaciones push, cobros e integraciones institucionales autorizadas.
+
+La dirección actual del producto y la decisión de no migrar el núcleo a
+WordPress están documentadas en
+[`docs/product/product-direction-2026.md`](docs/product/product-direction-2026.md).
 
 ## Arquitectura
 
@@ -64,7 +69,7 @@ Ver `docs/architecture/overview.md` para el detalle de decisiones.
 - **Backend**: Supabase (PostgreSQL, Auth, Storage, RLS).
 - **IA**: abstracción propia sobre OpenAI / Anthropic / Google Gemini.
 - **Mobile** (Fase 3): Flutter.
-- **Deploy**: Vercel (student-web y admin-web se despliegan por separado).
+- **Deploy**: Netlify con `@netlify/plugin-nextjs`.
 
 > **Nota técnica**: este proyecto usa Next.js 16, que renombró
 > "Middleware" a **"Proxy"** (`proxy.ts` en vez de `middleware.ts`, función
@@ -129,9 +134,9 @@ npm run test --workspace=packages/academic-core
 
 ## Deployment
 
-`apps/student-web` y `apps/admin-web` se despliegan como dos proyectos
-Vercel independientes, apuntando cada uno a su carpeta dentro del monorepo
-(Root Directory = `apps/student-web` / `apps/admin-web`).
+`apps/student-web` y `apps/admin-web` se despliegan como proyectos Netlify
+independientes. La configuración versionada está en `netlify.toml` y
+`apps/admin-web/netlify.toml`.
 
 ## Roadmap
 
