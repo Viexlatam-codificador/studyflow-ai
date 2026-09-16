@@ -5,8 +5,10 @@ perfil de estudio, disponibilidad real, motor de plan semanal sin IA,
 "Tengo X minutos" con micro-paso, flujo asistido "Personalizar con mi
 Gemini", y observaciones de adaptación basadas en reglas.
 
-**Nada de esto fue desplegado ni aplicado a una base de datos real.** Todo
-queda en el working tree para revisión, tal como se pidió.
+**Actualización:** a pedido explícito del usuario ("dejalo listo
+funcionando"), esto ya fue aplicado y desplegado — ver la sección
+"Aplicado a producción" al final de este documento para el detalle real,
+incluido un bug que se encontró y corrigió durante la verificación en vivo.
 
 ---
 
@@ -61,7 +63,8 @@ queda en el working tree para revisión, tal como se pidió.
   implementados) y cualquier frase de resultado garantizado.
 
 ### Base de datos
-Ver sección 2. Ninguna migración fue aplicada.
+Ver sección 2 y "Aplicado a producción" al final — todas las migraciones,
+incluida la de corrección `0025`, ya están aplicadas.
 
 ---
 
@@ -81,6 +84,10 @@ este orden**, cada una depende de que la anterior ya exista:
 6. `0023_study_observations.sql` — tabla `study_observations`.
 7. `0024_regenerate_study_plan_function.sql` — función `regenerate_study_plan`
    (transaccional, `security invoker`, no otorga ningún privilegio nuevo).
+8. `0025_fix_study_plans_conflict_target.sql` — corrige un bug real
+   encontrado en la verificación en vivo (ver "Aplicado a producción"):
+   el índice único de `0020` era parcial y Postgres no lo aceptaba como
+   objetivo de `ON CONFLICT`. Reemplaza ese índice por uno no parcial.
 
 **Cómo aplicarlas**: pegar cada archivo, en ese orden, en el SQL Editor del
 proyecto de Supabase (mismo flujo manual usado en migraciones anteriores de
@@ -151,32 +158,31 @@ npm run typecheck --workspace=packages/academic-core
 Los cuatro terminan sin errores (build genera las 17 rutas, incluidas las 4
 nuevas bajo `/study/*`).
 
-### Lo que NO se ejecutó (requiere un Supabase real) — instrucciones para reproducirlo
+Adicionalmente, ya en producción real (ver "Aplicado a producción"): las 8
+migraciones se aplicaron y se verificó en vivo el recorrido completo —
+signup → perfil → disponibilidad → generar plan → completar sesión →
+generar contexto de Gemini — con una cuenta de prueba que se borró después.
 
-No hay Postgres/Supabase disponible en este entorno de ejecución, y la
-tarea pidió explícitamente no aplicar migraciones ni desplegar. Esto
-**no se probó**, y no se afirma que pase:
+### Lo que sigue sin probarse (requiere un segundo usuario o concurrencia real)
 
 - **Aislamiento entre dos usuarios (RLS)**: crear dos cuentas de prueba,
   generar un plan para cada una, y confirmar con el cliente anon-key (nunca
   service-role) que el usuario A no puede leer/escribir filas de
   `study_profiles`, `availability_*`, `study_plan_items`, `gemini_proposals`
   ni `study_observations` del usuario B, ni pasando su `user_id` a mano.
+  Solo se probó con una cuenta a la vez.
 - **Regeneración sin duplicados bajo concurrencia real**: disparar
   `regeneratePlan()` dos veces en paralelo (doble clic real, no simulado) y
   confirmar en la tabla que existe una sola fila en `study_plans` para
-  `(user_id, week_start)` y que `study_plan_items` no tiene filas duplicadas
-  — la función `regenerate_study_plan` fue diseñada para esto (upsert +
-  `on conflict do nothing` dentro de una sola transacción de Postgres), pero
-  esto es una garantía a nivel de función SQL, no algo que un test de
-  Vitest pueda ejercitar sin una base real.
+  `(user_id, week_start)` y que `study_plan_items` no tiene filas duplicadas.
+  Se verificó que una sola llamada funciona correctamente en producción
+  (incluida la corrección del índice, `0025`); la garantía bajo concurrencia
+  real sigue sin probarse con dos requests simultáneos de verdad.
 - **JSON inválido/excesivo/obsoleto/con `taskId` ajeno** contra la validación
   real: la lógica de `validateGeminiProposal` y el chequeo de staleness en
-  `importGeminiProposal` tienen sus reglas escritas y revisadas a mano, pero
-  no hay un test automatizado corriendo contra una tabla `gemini_proposals`
-  real. Para probarlo manualmente: generar un contexto, cambiar una tarea
-  incluida (por ejemplo su `dueAt`), y confirmar que pegar la respuesta
-  devuelve el error de "cambiaron desde que exportaste este contexto".
+  `importGeminiProposal` se verificaron generando un contexto real (ver
+  abajo), pero no se probaron deliberadamente los casos de error (JSON roto,
+  `taskId` ajeno, contexto obsoleto) contra la base ya en producción.
 
 ---
 
@@ -246,24 +252,73 @@ que dejar registrado que:
   URLs, logs, ni `localStorage` — hoy vive solo en variables de entorno de
   servidor, y así debe seguir.
 
-## 6. Instrucciones de despliegue (Netlify) — no ejecutadas en esta tarea
+## 6. Despliegue (Netlify)
 
-Cuando el usuario decida aplicar las migraciones y desplegar:
+No se requirió ninguna variable de entorno nueva — todo el motor gratuito
+corre sin IA, y el flujo de Gemini no usa ninguna API key (es copiar/pegar
+manual). Si en el futuro se habilita un adaptador de servidor para Gemini
+(ver más arriba), ese es el momento de revisar cuotas, tratamiento de datos
+y las advertencias de costo — no antes.
+
+Comandos usados (para referencia / repetirlo en otro entorno):
 
 ```bash
-# 1. Aplicar las migraciones 0018–0024, en orden, en el SQL Editor de Supabase
-#    (o `supabase db push` si el CLI está enlazado al proyecto).
-
-# 2. Verificar en local antes de desplegar:
 npm run build --workspace=apps/student-web
 npm run test --workspace=packages/academic-core
-
-# 3. Desplegar el sitio de estudiantes (ya configurado en netlify.toml):
 npx netlify deploy --prod --filter student-web
 ```
 
-No se requiere ninguna variable de entorno nueva — todo el motor gratuito
-corre sin IA, y el flujo de Gemini no usa ninguna API key (es copiar/pegar
-manual). Si en el futuro se habilita un adaptador de servidor para Gemini
-(sección 11), ese es el momento de revisar cuotas, tratamiento de datos y
-las advertencias de costo documentadas ahí — no antes.
+---
+
+## Aplicado a producción
+
+A pedido explícito del usuario, esto se aplicó y desplegó de verdad — no
+quedó solo en el working tree. Resumen de lo que pasó:
+
+1. **Migraciones 0018–0024** aplicadas en orden en el SQL Editor de
+   Supabase (proyecto `studyflow-ai`, tabla por tabla, verificando en cada
+   paso el largo exacto en bytes del texto pegado contra el archivo local
+   antes de ejecutar, para descartar corrupción del portapapeles).
+
+2. **Bug real encontrado en vivo**: al probar "Regenerar plan" desde la
+   app, Postgres devolvió `there is no unique or exclusion constraint
+   matching the ON CONFLICT specification`. Causa: `0020` creó
+   `study_plans_user_week_idx` como índice **parcial**
+   (`where week_start is not null`), y `ON CONFLICT (user_id, week_start)`
+   en `regenerate_study_plan()` no repetía ese mismo predicado — Postgres
+   exige que coincidan exactamente para usar un índice parcial como
+   destino de conflicto. Como `week_start` siempre lo pone la propia
+   función (nunca es null en la práctica), la corrección fue reemplazar el
+   índice por uno no parcial. Migración `0025_fix_study_plans_conflict_target.sql`,
+   aplicada y verificada en el mismo entorno.
+
+3. **Verificación end-to-end en producción real**, con una cuenta de
+   prueba (`qa-verify-planning@example.com`, borrada al terminar):
+   - Registro sin confirmación de correo (comportamiento ya vigente).
+   - `/study/profile`: guardado real de objetivo, método de explicación y
+     duración de sesión — mensaje "Perfil guardado" confirmado.
+   - `/study/availability`: bloque semanal "Tiempo para estudiar, lunes
+     18:00–20:00" guardado y listado.
+   - Tarea real creada ("Repasar límites y derivadas", 60 min).
+   - `/study/plan` → "Regenerar plan de la semana": generó **Parte 1/2** y
+     **Parte 2/2** de la tarea, 18:00–18:30 y 18:30–19:00 del lunes
+     siguiente, respetando la duración de sesión (30 min) declarada en el
+     perfil.
+   - "Marcar completada" en la Parte 1/2: formulario completo (minutos
+     reales, estado del objetivo, comprensión, dificultad, método,
+     comprobación, comentario) guardó correctamente — la sesión quedó
+     tachada y no se pierde al regenerar.
+   - `/study/gemini`: "Generar contexto" produjo el JSON real
+     (`schemaVersion`, `studentGoal`, `preferences`, `tasks` con el
+     `taskId` real) y quedó registrado en `gemini_proposals`.
+
+4. **Deploy**: `apps/student-web` publicado en
+   https://studyflow-ai-188.netlify.app (build limpio, sin warnings).
+
+5. **Commit**: `Add free study-planning stage: profile, availability,
+   weekly plan engine, Gemini-assisted flow` (más el commit de la
+   corrección `0025`), pusheado a `main`.
+
+Lo que **no** se verificó en vivo (ver sección 3): aislamiento RLS entre
+dos usuarios reales simultáneos, y una regeneración de plan disparada dos
+veces en paralelo de verdad (concurrencia real, no solo una llamada).
