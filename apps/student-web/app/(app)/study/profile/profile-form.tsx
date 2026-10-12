@@ -124,7 +124,7 @@ export function ProfileForm({ initial }: { initial: StudyProfileRow }) {
           name="free_notes"
           defaultValue={initial.freeNotes ?? ""}
           rows={3}
-          placeholder="Texto libre — se incluye como contexto al personalizar con Gemini, StudyFlow no lo interpreta automáticamente."
+          placeholder="Texto libre — se incluye como contexto al personalizar con ChatGPT o Gemini; StudyFlow no lo interpreta automáticamente."
           className="rounded-lg border border-border bg-background px-3 py-2"
         />
       </label>

@@ -26,9 +26,9 @@ export interface BuildContextResult {
   taskCount: number;
 }
 
-/** Step 1-3 of "Personalizar con mi Gemini": build the compact context,
+/** Step 1-3 of the external AI personalization flow: build the compact context,
  * store its hash for the later staleness check, and hand back the exact
- * text the student will copy. Nothing is sent to Gemini by StudyFlow. */
+ * text the student will copy. Nothing is sent to a provider by StudyFlow. */
 export async function buildGeminiExport(selectedTaskIds: string[], includeGoal: boolean): Promise<BuildContextResult> {
   const { supabase, userId } = await requireUserId();
 
@@ -127,7 +127,7 @@ export async function importGeminiProposal(proposalId: string, rawResponse: stri
     return { error: "Tus tareas o preferencias cambiaron desde que exportaste este contexto. Genera un contexto nuevo antes de pegar la respuesta." };
   }
 
-  // Ownership check on every suggested taskId — never trust Gemini's (or
+  // Ownership check on every suggested taskId — never trust an external assistant's (or
   // an edited paste's) taskId just because it's a syntactically valid uuid.
   const ownedTaskIds = new Set(currentTasks.map((t) => t.id));
   const foreignSuggestion = validation.proposal.suggestions.find((s) => !ownedTaskIds.has(s.taskId));

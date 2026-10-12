@@ -9,7 +9,7 @@ const HUB_LINKS = [
   { href: "/study/plan", label: "Mi plan semanal", emoji: "🗓️" },
   { href: "/study/profile", label: "Mi perfil de estudio", emoji: "🎯" },
   { href: "/study/availability", label: "Mi disponibilidad", emoji: "⏰" },
-  { href: "/study/gemini", label: "Personalizar con mi Gemini", emoji: "✨" },
+  { href: "/study/gemini", label: "Personalizar con mi IA", emoji: "✨" },
 ];
 
 export default async function StudyPage() {
@@ -40,7 +40,7 @@ export default async function StudyPage() {
         ))}
       </div>
 
-      <StudyClient tasks={actionable} initialProvider={user.preferredAiProvider as AiProvider | null} subjects={subjects} />
+      <StudyClient tasks={actionable} initialProvider={(user.preferredAiProvider as AiProvider | null) ?? "chatgpt"} subjects={subjects} />
     </div>
   );
 }

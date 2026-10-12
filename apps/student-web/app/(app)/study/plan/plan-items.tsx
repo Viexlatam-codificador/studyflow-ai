@@ -66,7 +66,7 @@ function PlanItemCard({ item, timezone }: { item: StudyPlanItemRow; timezone: st
           <p className="text-xs text-foreground/50">
             {timeLabel(item.startsAt, timezone)}–{timeLabel(item.endsAt, timezone)}
             {item.subjectName ? ` · ${item.subjectName}` : ""}
-            {item.origin === "GEMINI" && <span className="ml-2 rounded-full bg-brand-violet/10 px-2 py-0.5 text-brand-violet">Gemini</span>}
+            {item.origin === "GEMINI" && <span className="ml-2 rounded-full bg-brand-violet/10 px-2 py-0.5 text-brand-violet">IA externa</span>}
           </p>
           <p className={`font-medium ${done ? "line-through" : ""}`}>{item.objective}</p>
           <p className="mt-1 text-xs text-foreground/50">{item.priorityReason}</p>

@@ -14,8 +14,8 @@ const FEATURES = [
     body: "Dile a StudyFlow cuánto tiempo tienes ahora mismo y te sugiere un paso pequeño y concreto, no solo el nombre de la tarea.",
   },
   {
-    title: "Personaliza con tu Gemini",
-    body: "Copia un contexto compacto, pégalo en tu propia cuenta de Gemini, y trae su respuesta de vuelta — StudyFlow decide dónde ubicarla en tu plan. Nunca te pedimos tu contraseña ni accedemos a tu cuenta de Google.",
+    title: "Personaliza con tu IA",
+    body: "Elige ChatGPT o Gemini, copia un contexto compacto y trae su propuesta de vuelta. StudyFlow valida los cambios antes de incorporarlos y nunca pide tu contraseña.",
   },
 ];
 
@@ -79,12 +79,12 @@ export default function LandingPage() {
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-6">
-          <h2 className="mb-2 text-xl font-semibold">Qué hace StudyFlow y qué haces tú en Gemini</h2>
+          <h2 className="mb-2 text-xl font-semibold">Qué hace StudyFlow y qué haces tú en ChatGPT o Gemini</h2>
           <p className="text-sm text-foreground/70">
             StudyFlow organiza tus tareas, calcula prioridades y arma tu plan semanal sin depender de ninguna IA
-            — funciona completo aunque nunca uses la parte de Gemini. Si quieres una segunda opinión, StudyFlow
-            prepara un resumen que tú copias y pegas en tu propia cuenta de Gemini; la respuesta la traes de
-            vuelta y decides qué incorporar. StudyFlow nunca inicia sesión en Google por ti ni accede a tu cuenta.
+            — funciona completo aunque nunca uses un asistente externo. Si quieres una segunda opinión, StudyFlow
+            prepara un resumen que tú copias y pegas en tu propia cuenta de ChatGPT o Gemini; la respuesta la traes
+            de vuelta y decides qué incorporar. Abrir el proveedor no conecta automáticamente tus cuentas.
           </p>
         </section>
       </main>

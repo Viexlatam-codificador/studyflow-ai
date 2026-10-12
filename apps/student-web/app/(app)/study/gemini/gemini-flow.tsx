@@ -10,8 +10,13 @@ import {
   type BuildContextResult,
   type ImportProposalState,
 } from "@/lib/actions/gemini-proposal";
+import { setPreferredAiProvider } from "@/lib/actions/study";
 
-const GEMINI_URL = "https://gemini.google.com/app";
+const PROVIDERS = {
+  chatgpt: { label: "ChatGPT", url: "https://chatgpt.com/" },
+  gemini: { label: "Gemini", url: "https://gemini.google.com/app" },
+} as const;
+type PlanningProvider = keyof typeof PROVIDERS;
 
 interface TaskOption {
   id: string;
@@ -22,9 +27,10 @@ interface TaskOption {
 
 type Step = "select" | "context" | "paste" | "preview";
 
-export function GeminiFlow({ tasks }: { tasks: TaskOption[] }) {
+export function GeminiFlow({ tasks, initialProvider }: { tasks: TaskOption[]; initialProvider: PlanningProvider }) {
   const router = useRouter();
   const [step, setStep] = useState<Step>("select");
+  const [provider, setProvider] = useState<PlanningProvider>(initialProvider);
   const [selectedIds, setSelectedIds] = useState<string[]>(tasks.slice(0, 5).map((t) => t.id));
   const [includeGoal, setIncludeGoal] = useState(true);
   const [context, setContext] = useState<BuildContextResult | null>(null);
@@ -35,6 +41,12 @@ export function GeminiFlow({ tasks }: { tasks: TaskOption[] }) {
   const [copyStatus, setCopyStatus] = useState<string | null>(null);
   const [applyMessage, setApplyMessage] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
+  const providerInfo = PROVIDERS[provider];
+
+  function chooseProvider(next: PlanningProvider) {
+    setProvider(next);
+    startTransition(() => setPreferredAiProvider(next));
+  }
 
   function toggleTask(id: string) {
     setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -49,14 +61,29 @@ export function GeminiFlow({ tasks }: { tasks: TaskOption[] }) {
       <ol className="flex flex-wrap gap-2 text-xs text-foreground/50">
         <li className={step === "select" ? "font-semibold text-brand-violet" : ""}>1. Elegir</li>
         <li>›</li>
-        <li className={step === "context" ? "font-semibold text-brand-violet" : ""}>2. Copiar y abrir Gemini</li>
+        <li className={step === "context" ? "font-semibold text-brand-violet" : ""}>2. Copiar y abrir tu IA</li>
         <li>›</li>
         <li className={step === "paste" || step === "preview" ? "font-semibold text-brand-violet" : ""}>3. Traer la respuesta</li>
       </ol>
 
       {step === "select" && (
         <div className="rounded-2xl border border-border bg-card p-5">
-          <p className="mb-3 text-sm font-medium">¿Qué tareas quieres que Gemini te ayude a planificar?</p>
+          <p className="mb-2 text-sm font-medium">¿Qué IA quieres usar?</p>
+          <div className="mb-5 flex gap-2">
+            {(Object.keys(PROVIDERS) as PlanningProvider[]).map((id) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => chooseProvider(id)}
+                className={`rounded-full border px-4 py-2 text-sm font-medium ${
+                  provider === id ? "brand-gradient border-transparent text-white" : "border-border"
+                }`}
+              >
+                {PROVIDERS[id].label}
+              </button>
+            ))}
+          </div>
+          <p className="mb-3 text-sm font-medium">¿Qué tareas quieres que {providerInfo.label} te ayude a planificar?</p>
           {tasks.length === 0 ? (
             <p className="text-sm text-foreground/50">No tienes tareas pendientes para incluir.</p>
           ) : (
@@ -120,12 +147,12 @@ export function GeminiFlow({ tasks }: { tasks: TaskOption[] }) {
               📋 Copiar contexto
             </button>
             <a
-              href={GEMINI_URL}
+              href={providerInfo.url}
               target="_blank"
               rel="noopener noreferrer"
               className="rounded-full border border-border px-4 py-2 text-sm font-medium hover:bg-foreground/5"
             >
-              Abrir Gemini ↗
+              Abrir {providerInfo.label} ↗
             </a>
             <button
               onClick={() => setStep("paste")}
@@ -136,19 +163,19 @@ export function GeminiFlow({ tasks }: { tasks: TaskOption[] }) {
           </div>
           {copyStatus && <p className="mt-2 text-xs text-brand-violet">{copyStatus}</p>}
           <p className="mt-3 text-xs text-foreground/50">
-            Pega el contexto en el chat de Gemini que se abrió, y trae aquí su propuesta para incorporarla.
+            Pega el contexto en {providerInfo.label} y trae aquí su propuesta. Abrir el sitio no conecta tu cuenta con StudyFlow.
           </p>
         </div>
       )}
 
       {step === "paste" && context && (
         <div className="rounded-2xl border border-border bg-card p-5">
-          <p className="mb-2 text-sm font-medium">Pega aquí la respuesta completa de Gemini</p>
+          <p className="mb-2 text-sm font-medium">Pega aquí la respuesta completa de {providerInfo.label}</p>
           <textarea
             value={rawResponse}
             onChange={(e) => setRawResponse(e.target.value)}
             rows={10}
-            placeholder="Pega el JSON (o el bloque ```json ... ```) que te devolvió Gemini"
+            placeholder={`Pega el JSON (o el bloque JSON) que te devolvió ${providerInfo.label}`}
             className="w-full rounded-lg border border-border bg-background p-3 font-mono text-xs"
           />
 
@@ -187,12 +214,12 @@ export function GeminiFlow({ tasks }: { tasks: TaskOption[] }) {
 
       {step === "preview" && importState?.proposal && context && (
         <div className="rounded-2xl border border-border bg-card p-5">
-          <p className="text-sm font-medium text-brand-violet">Resumen de Gemini</p>
+          <p className="text-sm font-medium text-brand-violet">Resumen de {providerInfo.label}</p>
           <p className="mt-1 text-sm text-foreground/80">{importState.proposal.summary}</p>
 
           {importState.proposal.openQuestions.length > 0 && (
             <div className="mt-3 rounded-lg border border-brand-warning/40 bg-brand-warning/10 p-3 text-sm">
-              <p className="font-medium text-brand-warning">Preguntas de Gemini (sin responder automáticamente):</p>
+              <p className="font-medium text-brand-warning">Preguntas de {providerInfo.label} (sin responder automáticamente):</p>
               <ul className="mt-1 list-disc pl-5">
                 {importState.proposal.openQuestions.map((q, idx) => (
                   <li key={idx}>{q}</li>

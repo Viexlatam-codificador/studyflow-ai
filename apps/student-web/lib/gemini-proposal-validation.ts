@@ -11,7 +11,7 @@ import {
 
 /**
  * Strict, versioned validation for whatever the student pastes back from
- * Gemini (section 7). Deliberately conservative: no `eval`, no "smart"
+ * an external assistant. Deliberately conservative: no `eval`, no "smart"
  * parser that tries to salvage malformed input, no coercion of unexpected
  * shapes. Text fields are always treated as content to display, never as
  * code or as instructions to execute.
@@ -72,7 +72,7 @@ export function validateGeminiProposal(raw: string, expectedSchemaVersion: numbe
     return {
       ok: false,
       reason: "too_large",
-      message: `El texto pegado es demasiado largo (${raw.length} caracteres, máximo ${GEMINI_PROPOSAL_MAX_CHARS}). Pide a Gemini una respuesta más breve.`,
+      message: `El texto pegado es demasiado largo (${raw.length} caracteres, máximo ${GEMINI_PROPOSAL_MAX_CHARS}). Pide una respuesta más breve.`,
     };
   }
 
