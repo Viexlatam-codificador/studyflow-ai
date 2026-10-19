@@ -1,12 +1,23 @@
 "use client";
 
-import { useActionState } from "react";
+import { Suspense, useActionState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { login, resendConfirmation, type AuthFormState } from "@/lib/actions/auth";
 
 const initialState: AuthFormState = {};
 
 export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen" />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
+  const searchParams = useSearchParams();
+  const next = searchParams.get("next") ?? "";
   const [state, formAction, pending] = useActionState(login, initialState);
   const [resendState, resendAction, resendPending] = useActionState(
     async (_prev: AuthFormState, email: string) => resendConfirmation(email),
@@ -49,6 +60,7 @@ export default function LoginPage() {
         <p className="mb-6 text-sm text-foreground/60">Sigue avanzando en tus estudios.</p>
 
         <form action={formAction} className="flex flex-col gap-4">
+          <input type="hidden" name="next" value={next} />
           <label className="flex flex-col gap-1 text-sm">
             <span className="font-medium">Correo</span>
             <input

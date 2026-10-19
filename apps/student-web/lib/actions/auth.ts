@@ -17,7 +17,12 @@ const SignupSchema = z.object({
 const LoginSchema = z.object({
   email: z.email({ error: "Ingresa un correo válido." }).trim(),
   password: z.string().min(1, { error: "Ingresa tu contraseña." }),
+  next: z.string().optional(),
 });
+
+function safeNextPath(value: string | undefined): string {
+  return value?.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
+}
 
 export interface AuthFormState {
   error?: string;
@@ -87,6 +92,7 @@ export async function login(_prevState: AuthFormState, formData: FormData): Prom
   const parsed = LoginSchema.safeParse({
     email: formData.get("email"),
     password: formData.get("password"),
+    next: formData.get("next") || undefined,
   });
 
   if (!parsed.success) {
@@ -103,7 +109,7 @@ export async function login(_prevState: AuthFormState, formData: FormData): Prom
     return { error: "Correo o contraseña incorrectos." };
   }
 
-  redirect("/dashboard");
+  redirect(safeNextPath(parsed.data.next));
 }
 
 export async function logout() {

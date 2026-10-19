@@ -1,0 +1,14 @@
+project_id = "studyflow-ai"
+
+[auth]
+site_url = "http://localhost:3000"
+
+[auth.oauth_server]
+enabled = true
+authorization_url_path = "/oauth/consent"
+allow_dynamic_registration = true
+
+# OAuth discovery reaches the function before a bearer token exists. The
+# Edge Function validates the token itself with @supabase/server afterwards.
+[functions.studyflow-mcp]
+verify_jwt = false

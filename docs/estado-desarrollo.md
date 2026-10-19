@@ -1,5 +1,29 @@
 # Estado de desarrollo
 
+## 2026-10-19
+
+- **Estado:** primera versión local del tutor MCP; no desplegada.
+- **Servidor:** nueva Edge Function `studyflow-mcp` autenticada con OAuth 2.1
+  de Supabase. Todas las consultas se ejecutan como el alumno y respetan RLS.
+- **Tutoría:** cinco herramientas de solo lectura entregan perfil, carga próxima,
+  plan activo, evidencia y un encargo pedagógico personalizado para GPT, Gemini
+  u otro cliente compatible.
+- **Adaptación:** conserva separadas las preferencias declaradas, la percepción
+  del alumno y las comprobaciones. Exige evidencia repetida, evita etiquetas de
+  aprendizaje fijas y deja las adaptaciones bajo control del estudiante.
+- **Interfaz:** se agregó la pantalla de consentimiento `/oauth/consent`, la
+  decisión segura de aprobar o negar y el retorno al consentimiento después de
+  iniciar sesión.
+- **Costo inicial:** StudyFlow no llama una API de IA; el modelo conectado por el
+  alumno realiza la tutoría y el MCP aporta la memoria académica.
+- **Activación pendiente:** habilitar OAuth Server y registro dinámico en el
+  proyecto Supabase, confirmar firma JWT asimétrica, desplegar la función y
+  publicar la interfaz en Netlify. Instrucciones en `docs/mcp-tutor.md`.
+- **Comprobaciones:** typecheck y lint de `student-web` aprobados; build de
+  producción con Webpack aprobado; 58 pruebas de `academic-core` aprobadas.
+  La Edge Function no se ejecutó localmente porque este equipo aún no tiene
+  Deno ni Supabase CLI instalados.
+
 ## 2026-10-11
 
 - **Estado:** cambios locales; no publicados.
