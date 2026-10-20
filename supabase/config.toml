@@ -1,7 +1,7 @@
 project_id = "studyflow-ai"
 
 [auth]
-site_url = "http://localhost:3000"
+site_url = "https://studyflow-ai-188.netlify.app"
 
 [auth.oauth_server]
 enabled = true

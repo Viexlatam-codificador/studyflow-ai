@@ -1,5 +1,5 @@
 [build]
-  command = "npm run build --workspace=apps/student-web"
+  command = "npm run build --workspace=apps/student-web -- --webpack"
   publish = "apps/student-web/.next"
 
 [[plugins]]

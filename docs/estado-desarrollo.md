@@ -16,13 +16,14 @@
   iniciar sesión.
 - **Costo inicial:** StudyFlow no llama una API de IA; el modelo conectado por el
   alumno realiza la tutoría y el MCP aporta la memoria académica.
-- **Activación pendiente:** habilitar OAuth Server y registro dinámico en el
-  proyecto Supabase, confirmar firma JWT asimétrica, desplegar la función y
-  publicar la interfaz en Netlify. Instrucciones en `docs/mcp-tutor.md`.
+- **Activación:** OAuth Server, registro dinámico, Edge Function y pantalla de
+  consentimiento publicados. Instrucciones de conexión en `docs/mcp-tutor.md`.
 - **Comprobaciones:** typecheck y lint de `student-web` aprobados; build de
   producción con Webpack aprobado; 58 pruebas de `academic-core` aprobadas.
-  La Edge Function no se ejecutó localmente porque este equipo aún no tiene
-  Deno ni Supabase CLI instalados.
+- **Publicación:** OAuth 2.1 y registro dinámico activados en el proyecto
+  Supabase; Site URL corregida a producción y Edge Function desplegada. Netlify
+  queda configurado para compilar con Webpack porque Turbopack intenta abrir un
+  puerto interno durante el build local.
 
 ## 2026-10-11
 
